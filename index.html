@@ -290,6 +290,8 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
 .cheer{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 18px);transform:translate(-50%,-20px);opacity:0;z-index:61;pointer-events:none;background:var(--paper);color:var(--ink);border:2px solid var(--t-names);border-radius:22px;padding:.8rem 1.4rem;box-shadow:0 20px 50px rgba(0,0,0,.45);font:italic 500 1.12rem/1.35 var(--serif);text-align:center;max-width:calc(100% - 32px);transition:opacity .35s var(--ease),transform .45s var(--ease)}
 .cheer.show{opacity:1;transform:translate(-50%,0)}
 .cheer small{display:block;font:600 .78rem var(--ui-font);font-style:normal;color:var(--ink-soft);margin-top:.25rem}
+.ask .col{display:flex;flex-direction:column;gap:.5rem}
+.ask .col .fbtn{text-align:left;padding:.65rem 1rem}
 .grow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.55rem 0 0;font-size:.82rem;color:var(--ink-soft)}
 .grow label{min-width:7.5rem;color:var(--ink);font-weight:500}
 .letter{font:1.06rem/1.7 var(--serif);color:var(--ink)}
@@ -834,7 +836,7 @@ const idle=fn=>{ if(window.requestIdleCallback) requestIdleCallback(()=>fn(),{ti
 function renderTabs(){
   const p=P(); const w=p.knip.reduce((a,k)=>a+k.words,0);
   $('#b-knip').textContent = w ? fmt(w) : '';
-  const y=eds.first.querySelectorAll('mark.y').length;
+  const y=drawerGroups().length;
   $('#b-drawer').textContent = y ? String(y) : '';
   $('#b-names').textContent = candidates.length ? String(candidates.length) : '';
   const lc=laterEls().length; $('#b-later').textContent = lc ? String(lc) : '';
@@ -980,7 +982,7 @@ function liveRange(k){
 
 /* ---------------- colour marks ---------------- */
 function markRange(range, cls){
-  const root=eds.first;
+  const root=eds.first; const gid='m'+uid();
   const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
   const parts=[];
   while(walker.nextNode()){
@@ -1000,7 +1002,7 @@ function markRange(range, cls){
       if(after.firstChild) t.parentNode.insertBefore(after,t.nextSibling);
       if(!p.firstChild) p.remove();
     }
-    if(cls!=='none'){ const m=document.createElement('mark'); m.className=cls; t.parentNode.insertBefore(m,t); m.appendChild(t); }
+    if(cls!=='none'){ const m=document.createElement('mark'); m.className=cls; m.dataset.g=gid; t.parentNode.insertBefore(m,t); m.appendChild(t); }
   }
   root.querySelectorAll('mark').forEach(m=>{
     let nx=m.nextSibling;
@@ -1035,12 +1037,27 @@ document.querySelectorAll('[data-cut]').forEach(b=>b.addEventListener('click',()
 
 /* ---------------- drawer: jump & come back ---------------- */
 let returnTop=null;
+/* one yellow selection = one piece in the drawer, even across paragraphs */
+function drawerGroups(){
+  const ms=[...eds.first.querySelectorAll('mark.y')], out=[]; let cur=null;
+  for(const m of ms){
+    const g=m.dataset.g||'';
+    let join=false;
+    if(cur){
+      const prev=cur.marks[cur.marks.length-1];
+      if(g && g===cur.g) join=true;
+      else if(!g && !cur.g){ const r=document.createRange(); r.setStartAfter(prev); r.setEndBefore(m); join=!r.toString().trim(); }
+    }
+    if(join) cur.marks.push(m); else { cur={g,marks:[m]}; out.push(cur); }
+  }
+  return out;
+}
 function jumpTo(i){
-  const m=eds.first.querySelectorAll('mark.y')[i]; if(!m) return;
+  const grp=drawerGroups()[i]; if(!grp) return; const m=grp.marks[0];
   if(returnTop===null) returnTop=scrolls.first.scrollTop;
   closeFolio(); if(window.innerWidth<=1100){ S.sideOpen=false; applySide(); }
   m.scrollIntoView({block:'center',behavior:'smooth'});
-  m.classList.remove('flash'); void m.offsetWidth; m.classList.add('flash');
+  grp.marks.forEach(x=>{ x.classList.remove('flash'); void x.offsetWidth; x.classList.add('flash'); });
   $('#back-chip').hidden=false;
 }
 $('#back-chip').addEventListener('click',()=>{
@@ -1502,7 +1519,7 @@ document.addEventListener('keydown',e=>{
 /* ---------------- small notebook & sheets ---------------- */
 let folioView=null, sideView='names';
 const accents={drawer:'var(--t-lade)',knip:'var(--t-knip)',names:'var(--t-names)',later:'var(--t-later)',feel:'var(--t-feel)',checks:'var(--t-checks)'};
-function openFolio(v){ folioView=v; $('#folio').scrollTop=0; renderFolio(); $('#folio').classList.add('open'); $('#folio').setAttribute('aria-hidden','false'); $('#scrim').classList.add('open'); }
+function openFolio(v){ if(v==='projects') safetyList().then(l=>{ safetyCache=l; if(folioView==='projects') renderFolio(); }); folioView=v; $('#folio').scrollTop=0; renderFolio(); $('#folio').classList.add('open'); $('#folio').setAttribute('aria-hidden','false'); $('#scrim').classList.add('open'); }
 function closeFolio(){ folioView=null; $('#folio').classList.remove('open'); $('#folio').setAttribute('aria-hidden','true'); $('#scrim').classList.remove('open'); }
 $('#scrim').onclick=closeFolio; $('#folio-close').onclick=closeFolio;
 $('#open-progress').onclick=()=>openFolio('progress');
@@ -1527,15 +1544,15 @@ function markWords(cls){ return [...eds.first.querySelectorAll('mark.'+cls)].red
 function renderView(folioView, body){
   const p=P(); let h='';
   if(folioView==='drawer'){
-    const ms=[...eds.first.querySelectorAll('mark.y')];
-    const txt=eds.first.innerText, total=txt.length||1;
+    const ms=drawerGroups();
+    const txt=eds.first.textContent, total=txt.length||1;
     h+=`<h3>The drawer</h3><p class="intro">Everything you marked yellow on your left page, in ${esc(draftName('first'))}. Tap a piece to go there; the button on your page takes you back to where you were.</p>`;
     if(!ms.length) h+=`<p class="empty">The drawer is empty. While rewriting, select a part of your left page and mark it yellow, and it lands here.</p>`;
     let acc=0;
     ms.forEach((m,i)=>{
-      const t=m.textContent.trim(); const ex=t.split(/\s+/).slice(0,26).join(' ')+(words(t)>26?'…':'');
-      const at=txt.indexOf(t.slice(0,40),acc); acc=Math.max(acc,at); const pos=Math.round(Math.max(0,at)/total*100);
-      h+=`<div class="item"><p>${esc(ex)}</p><div class="meta">${fmt(words(t))} words, about ${pos}% into ${esc(draftName('first'))}</div><div class="row" style="margin-top:.5rem"><button class="fbtn strong" data-jump="${i}">Go there</button></div></div>`;
+      const t=m.marks.map(x=>x.textContent.trim()).join(' '); const ex=t.split(/\s+/).slice(0,26).join(' ')+(words(t)>26?'…':'');
+      const at=txt.indexOf(m.marks[0].textContent.trim().slice(0,40),acc); acc=Math.max(acc,at); const pos=Math.round(Math.max(0,at)/total*100);
+      h+=`<div class="item"><p>${esc(ex)}</p><div class="meta">${fmt(words(t))} words${m.marks.length>1?`, ${m.marks.length} paragraphs`:''}, about ${pos}% into ${esc(draftName('first'))}</div><div class="row" style="margin-top:.5rem"><button class="fbtn strong" data-jump="${i}">Go there</button></div></div>`;
     });
     if(p.mode!=='rewrite' && ms.length) h+=`<p class="empty" style="margin-top:1rem">Switch to Rewrite to see both pages side by side.</p>`;
   }
@@ -1608,6 +1625,7 @@ function renderView(folioView, body){
     h+=`<div class="group">Palette for ${esc(p.title)}</div><div class="swatches">${PALETTES.map(([k,n,bg,ac])=>`<button class="sw-btn" data-pal="${k}" aria-pressed="${(p.palette||'candle')===k}"><span class="c"><span style="background:${bg}"></span><span style="background:${ac}"></span></span>${n}</button>`).join('')}</div>`;
     h+=projectsExtra(p);
     h+=dropboxSection();
+    h+=safetySection();
     h+=`<div class="group">Backup</div><div class="row"><button class="fbtn" id="backup">Make a backup</button><button class="fbtn" id="restore">Restore a backup</button></div>`;
     h+=`<p class="more" style="margin-top:1.4rem;text-align:center">Schrijfbureau · version ${APP_VERSION}</p>`;
   }
@@ -1786,7 +1804,8 @@ $('#file-docx').addEventListener('change',async e=>{
   if(!window.mammoth && !window.JSZip){ toast('Word import is unavailable right now: the reader did not load'); return; }
   syncDom(); const p=P(), d=p.drafts.find(x=>x.id===impTarget); if(!d) return;
   const k=['first','second'].find(s=>p.slots[s]===d.id);
-  if(d.html.replace(/<[^>]+>/g,'').trim() && !await ask(`${d.name} is not empty. Replace it with "${f.name}"? Make a backup first if you're unsure.`,'Replace')) return;
+  if(d.html.replace(/<[^>]+>/g,'').trim() && !await ask(`${d.name} is not empty. Replace it with "${f.name}"? A safety copy is made first.`,'Replace')) return;
+  if(d.html.replace(/<[^>]+>/g,'').trim()) await safetySave(`Before importing Word into ${d.name}`);
   try{
     const res=await readDocx(f);
     d.html=res.html; d.u=Date.now(); scheduleSave();
@@ -1849,7 +1868,8 @@ $('#file-json').addEventListener('change',async e=>{
   try{
     const d=JSON.parse(await f.text());
     if(!d.state || !Array.isArray(d.state.projects)) throw 0;
-    if(!await ask('Restore this backup? What is on this device now will be replaced.','Restore')) return;
+    if(!await ask('Restore this backup? What is on this device now will be replaced. A safety copy is made first.','Restore')) return;
+    await safetySave('Before restoring a backup');
     S=d.state; S.projects.forEach(upgrade); if(!P()) S.activeId=S.projects[0].id;
     applySide(); applyTw(); loadProject(); await saveNow(); closeFolio(); toast('Backup restored');
   }catch(err){ toast('This is not a notebook backup'); }
@@ -1966,7 +1986,15 @@ async function dbxPullS(){
   const f=await dbxDown(SFILE); if(!f){ dbxDirtyS=true; return; }
   if(f.rev===DBX.rev.s) return;
   syncDom(); const before=activeSig(), top={first:scrolls.first.scrollTop, second:scrolls.second.scrollTop};
-  const m=mergeStates(S,JSON.parse(f.text));
+  const remote=JSON.parse(f.text); const m=mergeStates(S,remote);
+  const wl=stateWords(S), wm=stateWords(m.state); DBX.remoteWords=stateWords(remote);
+  if(bigDrop(wl,wm)){
+    const c=await ask3(`Syncing with Dropbox would leave much less text on this device: ${fmt(wm)} words instead of ${fmt(wl)}. What would you like to do?`, ["Keep this device's text and put it in Dropbox","Use the version from Dropbox","Stop syncing for now"]);
+    if(c===2){ DBX.stopped=true; const e=new Error('stopped'); e.stopped=true; throw e; }
+    if(c===0){ await safetySave('Before choosing this device over Dropbox'); const now=Date.now(); S.projects.forEach(p=>{ p.u=now; p.drafts.forEach(x=>x.u=now); }); S.savedAt=now; DBX.rev.s=f.rev; dbxSave(); dbxDirtyS=true; DBX.forcePush=true; return; }
+    await safetySave('Before taking the Dropbox version');
+    S=remote; S.projects.forEach(upgrade); if(!P()) S.activeId=S.projects[0].id; DBX.rev.s=f.rev; dbxSave(); edDirty.first=edDirty.second=true; await store.set('state',S); loadProject(); dbxDirtyS=false; return;
+  } else if(Math.abs(wm-wl)>50 || m.state.projects.length!==S.projects.length) await safetySave('Before Dropbox changed things', 20*60000);
   S=m.state; S.projects.forEach(upgrade); DBX.rev.s=f.rev; dbxSave();
   await store.set('state',S);
   if(activeSig()!==before){ loadProject(); scrolls.first.scrollTop=top.first; scrolls.second.scrollTop=top.second; } else { renderDraftSelects(); refreshPanels(); }
@@ -1985,15 +2013,21 @@ async function dbxPushOne(file,key,getText,pull){
   }
 }
 async function dbxSyncAll(){
-  if(!dbxOn() || DBX.busy) return; DBX.busy=true; setDbx('Syncing…');
+  if(!dbxOn() || DBX.busy || DBX.stopped) return; DBX.busy=true; setDbx('Syncing…');
   try{
     await dbxPullS(); await dbxPullL();
     const hadS=dbxDirtyS, hadL=dbxDirtyL; DBX.had=[hadS,hadL];
-    if(dbxDirtyS){ dbxDirtyS=false; syncDom(); S.savedAt=S.savedAt||Date.now(); await dbxPushOne(SFILE,'s',()=>JSON.stringify(S),async()=>{ await dbxPullS(); }); }
+    if(dbxDirtyS && !DBX.forcePush && DBX.remoteWords && bigDrop(DBX.remoteWords, stateWords(S))){
+      const c=await ask3(`This device has much less text than Dropbox: ${fmt(stateWords(S))} words instead of ${fmt(DBX.remoteWords)}. Should this device's version go to Dropbox?`, ["No, bring the Dropbox version to this device","Yes, put this device's version in Dropbox","Stop syncing for now"]);
+      if(c===2){ DBX.stopped=true; const e=new Error('stopped'); e.stopped=true; throw e; }
+      if(c===0){ const f=await dbxDown(SFILE); if(f){ await safetySave('Before taking the Dropbox version'); S=JSON.parse(f.text); S.projects.forEach(upgrade); if(!P()) S.activeId=S.projects[0].id; DBX.rev.s=f.rev; dbxSave(); edDirty.first=edDirty.second=true; await store.set('state',S); loadProject(); } dbxDirtyS=false; }
+    }
+    DBX.forcePush=false;
+    if(dbxDirtyS){ dbxDirtyS=false; syncDom(); S.savedAt=S.savedAt||Date.now(); DBX.remoteWords=stateWords(S); await dbxPushOne(SFILE,'s',()=>JSON.stringify(S),async()=>{ await dbxPullS(); }); }
     if(dbxDirtyL && LOG){ dbxDirtyL=false; await dbxPushOne(LFILE,'l',()=>JSON.stringify(LOG.exportState()),dbxPullL); }
     DBX.at=Date.now(); DBX.synced=Date.now(); dbxSave(); setDbx('Synced'); if(LOG) LOG.setSync('synced');
     if(store.mode!=='memory') $('#saved').textContent='Synced';
-  }catch(e){ setDbx(dbxErr(e)); if(e&&e.auth){ DBX.token=''; } if(DBX.had){ dbxDirtyS=dbxDirtyS||DBX.had[0]; dbxDirtyL=dbxDirtyL||DBX.had[1]; } }
+  }catch(e){ if(e&&e.stopped){ setDbx('Syncing is paused. Nothing was overwritten. Tap Sync now when you are ready'); if(LOG) LOG.setSync('local'); DBX.busy=false; DBX.had=null; return; } setDbx(dbxErr(e)); if(e&&e.auth){ DBX.token=''; } if(DBX.had){ dbxDirtyS=dbxDirtyS||DBX.had[0]; dbxDirtyL=dbxDirtyL||DBX.had[1]; } }
   DBX.had=null;
   DBX.busy=false;
   if(dbxDirtyS||dbxDirtyL){ clearTimeout(dbxT); dbxT=setTimeout(()=>{ dbxT=null; dbxSyncAll(); }, navigator.onLine===false?60000:8000); }
@@ -2027,7 +2061,7 @@ function bindDropbox(body){
   const go=body.querySelector('#dbx-go'); if(go) go.onclick=()=>{ DBX.wait=true; };
   const ky=body.querySelector('#dbx-key'); if(ky) ky.onchange=()=>{ const v=ky.value.trim(); if(v&&v!==DBX.key){ DBX.key=v; dbxSave(); try{ localStorage.removeItem('sb-pkce'); }catch(e){} DBX.authUrl=''; dbxPrep(); } };
   const fin=body.querySelector('#dbx-fin'); if(fin) fin.onclick=()=>dbxFinish(body.querySelector('#dbx-code').value);
-  const now=body.querySelector('#dbx-now'); if(now) now.onclick=()=>{ dbxDirtyS=true; dbxDirtyL=true; dbxSyncAll(); };
+  const now=body.querySelector('#dbx-now'); if(now) now.onclick=()=>{ DBX.stopped=false; dbxDirtyS=true; dbxDirtyL=true; dbxSyncAll(); };
   const off=body.querySelector('#dbx-off'); if(off) off.onclick=async()=>{ if(await ask('Disconnect Dropbox? Your work stays on this device and in your Dropbox, it just stops syncing.','Disconnect')) dbxDisconnect(); };
 }
 
@@ -2409,6 +2443,7 @@ function bindExtra(body,view){
   }
   if(view==='projects'){
     bindDropbox(body);
+    bindSafety(body);
     body.querySelectorAll('[data-snapx]').forEach(b=>b.onclick=()=>{ const [date,id]=b.dataset.snapx.split('|'); const e=SNAP.data&&SNAP.data.dates[date]&&SNAP.data.dates[date][id]; if(e) exportDocx(id,{html:e.html,name:e.name,date}); });
     const sa=body.querySelector('#snap-all'); if(sa) sa.onclick=()=>{ snapShowAll=true; renderFolio(); };
   }
@@ -3238,6 +3273,7 @@ function adopt(p){
   touch('settings'); renderSoon(); return twin;
 }
 return {
+  replaceState(x){ S.settings=normSettings(x.settings||{}); S.settings.u=Date.now(); S.days=x.days||{}; for(const d of Object.values(S.days)) d.u=Date.now(); saveLocal(); dirty.add('settings'); Object.keys(S.days).forEach(k=>dirty.add(monthKey(k))); clearTimeout(saveTimer); saveTimer=setTimeout(flush,700); render(); },
   refresh(){ if(!isTyping()&&$('#modal').hidden) render(); },
   fillGaps,
   running(){ return !!runningDay(); },
@@ -3529,7 +3565,65 @@ scrolls.first.addEventListener('click',e=>{
   toast('Got it. The left page now follows your writing from here');
 },true);
 
-const APP_VERSION='2026-10-27b';
+let safetyCache=null;
+/* ================= SAFETY NET: automatic safety copies + a check before big losses ================= */
+const SAFE_MAX=12;
+const htmlWords=h=>words((h||'').replace(/<\/(p|h\d|div|li|blockquote)>|<br\s*\/?>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&[a-z#0-9]+;/gi,'x'));
+function stateWords(st){ if(!st||!Array.isArray(st.projects)) return 0; let w=0; for(const p of st.projects){ for(const d of (p.drafts||[])) w+=htmlWords(d.html); for(const k of (p.knip||[])) w+=(k.words||0); } return w; }
+async function safetyList(){ try{ const l=await store.get('safety'); return Array.isArray(l)?l:[]; }catch(e){ return []; } }
+async function safetySave(reason,minGapMs){
+  try{
+    if(!S || store.mode==='memory') return false;
+    syncDom(); const list=await safetyList();
+    if(minGapMs && list.length && Date.now()-list[0].at<minGapMs) return false;
+    const data=JSON.stringify({state:S, log:LOG?LOG.exportState():null});
+    if(list.length && list[0].size===data.length && list[0].data===data) return false;
+    list.unshift({id:uid(), at:Date.now(), reason, words:stateWords(S), stories:S.projects.length, size:data.length, data});
+    while(list.length>SAFE_MAX) list.pop();
+    await store.set('safety',list); safetyCache=list; if(folioView==='projects') renderFolio(); return true;
+  }catch(e){ return false; }
+}
+function ask3(msg, options){
+  return new Promise(res=>{
+    const w=document.createElement('div'); w.className='askwrap';
+    w.innerHTML=`<div class="ask" role="alertdialog" aria-modal="true"><p></p><div class="col"></div></div>`;
+    w.querySelector('p').textContent=msg;
+    const col=w.querySelector('.col');
+    options.forEach((o,i)=>{ const b=document.createElement('button'); b.className='fbtn'+(i===0?' strong':''); b.textContent=o; b.onclick=()=>{ w.remove(); res(i); }; col.appendChild(b); });
+    document.body.appendChild(w); col.firstChild.focus();
+  });
+}
+const bigDrop=(from,to)=>from>0 && to<from*0.8 && from-to>500;
+async function restoreSafety(id){
+  const list=await safetyList(); const it=list.find(x=>x.id===id); if(!it) return;
+  if(!await ask(`Put back the safety copy from ${new Date(it.at).toLocaleString('en-GB',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})}? What is on this device now is kept as a safety copy first, so you can always go back.`,'Put it back')) return;
+  await safetySave('Before putting back a safety copy');
+  const d=JSON.parse(it.data); const now=Date.now();
+  S=d.state; S.projects.forEach(p=>{ upgrade(p); p.u=now; p.drafts.forEach(x=>x.u=now); }); S.savedAt=now;
+  if(!P()) S.activeId=S.projects[0].id;
+  if(d.log && LOG && LOG.replaceState) LOG.replaceState(d.log);
+  edDirty.first=edDirty.second=true; applySide(); loadProject(); sbChanged=true; await saveNow();
+  if(dbxOn()){ dbxDirtyS=true; dbxDirtyL=true; DBX.remoteWords=0; dbxSyncAll(); }
+  closeFolio(); toast('Your safety copy is back');
+}
+async function downloadSafety(id){
+  const list=await safetyList(); const it=list.find(x=>x.id===id); if(!it) return;
+  const d=JSON.parse(it.data);
+  await saveFile(`Notebook safety copy - ${new Date(it.at).toISOString().slice(0,16).replace('T',' ').replace(':','.')}.json`, new Blob([JSON.stringify({app:'schrijfbureau',saved:new Date(it.at).toISOString(),state:d.state,log:d.log},null,1)],{type:'application/json'}));
+}
+function safetySection(){
+  let h=`<div class="group">Safety copies</div><p class="more" style="margin-bottom:.5rem">The app keeps its own copies on this device: when you open it, and before Dropbox changes anything. The newest ${SAFE_MAX} are kept.</p>`;
+  const l=safetyCache||[];
+  if(!l.length) return h+`<p class="more">The first copy is made the next time you open the app.</p>`;
+  l.forEach(it=>{ h+=`<div class="drow"><div class="w" style="width:auto;flex:1;color:var(--ink)"><b>${new Date(it.at).toLocaleString('en-GB',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</b> · ${esc(it.reason)}<br><span class="more">${fmt(it.words)} words in ${it.stories} ${it.stories===1?'story':'stories'}</span></div><button class="fbtn" data-sfrest="${it.id}">Put back</button><button class="fbtn" data-sfdl="${it.id}">Download</button></div>`; });
+  return h;
+}
+function bindSafety(body){
+  body.querySelectorAll('[data-sfrest]').forEach(b=>b.onclick=()=>restoreSafety(b.dataset.sfrest));
+  body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
+}
+
+const APP_VERSION='2026-10-27d';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
@@ -3541,6 +3635,7 @@ const APP_VERSION='2026-10-27b';
   if(window.innerWidth<=560) S.sideOpen=false;
   if(!P()) S.activeId=S.projects[0].id;
   await dbxStartup();
+  setTimeout(()=>safetySave('When the app opened', 6*3600e3), 2500);
   setTimeout(autoWinter, 1500);
   applySide(); applyTw(); loadProject();
   if(store.mode==='memory') $('#saved').textContent='Not saved on this device: make a backup';
