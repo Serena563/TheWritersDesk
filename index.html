@@ -1609,6 +1609,7 @@ function renderView(folioView, body){
     h+=projectsExtra(p);
     h+=dropboxSection();
     h+=`<div class="group">Backup</div><div class="row"><button class="fbtn" id="backup">Make a backup</button><button class="fbtn" id="restore">Restore a backup</button></div>`;
+    h+=`<p class="more" style="margin-top:1.4rem;text-align:center">Schrijfbureau · version ${APP_VERSION}</p>`;
   }
   if(['later','feel','checks'].includes(folioView)){ if(folioView==='later') pruneLater(); h+=extraView(folioView,p); }
   body.innerHTML=h;
@@ -3528,6 +3529,7 @@ scrolls.first.addEventListener('click',e=>{
   toast('Got it. The left page now follows your writing from here');
 },true);
 
+const APP_VERSION='2026-10-27b';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
