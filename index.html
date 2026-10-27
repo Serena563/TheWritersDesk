@@ -352,6 +352,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
     <button class="qbtn" id="open-progress">Progress</button>
     <button class="qbtn" id="open-projects">Stories</button>
     <button class="qbtn" id="quick-sprint" title="Start a sprint right away">▶ Sprint</button>
+    <button class="qbtn" id="quick-pause" hidden title="Pause this sprint">❚❚ Pause</button>
     <button class="qbtn" id="open-log" aria-pressed="false" title="Sprint timer and your writing log">Log</button>
     <button class="qbtn" id="toggle-tw" aria-pressed="false" title="Keep the line you are typing in the middle of the page">Typewriter</button>
     <button class="qbtn" id="toggle-side" aria-pressed="true" title="Show or hide your small notebook">Notebook</button>
@@ -756,6 +757,10 @@ function upgrade(p){
   if(p.read && p.read.src && !p.read.draftId){ p.read.draftId=p.slots[p.read.src]; } p.names=p.names||[]; p.names.forEach(n=>{ n.aliases=n.aliases||[]; n.links=n.links||[]; }); p.ignored=p.ignored||[]; p.seen=p.seen||{}; p.manual=p.manual||[]; p.stats=p.stats||{total:0,forward:0,mid:0,days:{}}; p.knip=p.knip||[]; p.later=p.later||[]; return p; }
 const P = () => S.projects.find(p=>p.id===S.activeId);
 const last = { first:0, second:0 };
+const lastT = { first:Date.now(), second:Date.now() };
+const inStart = { first:null, second:null };
+const notTyped = { first:false, second:false };
+function edWords(k){ if(!wcDirty[k]) return wcCache[k]; wcDirty[k]=false; return wcCache[k]=words(eds[k].innerHTML.replace(/<\/(p|h\d|div|li|blockquote)>|<br\s*\/?>/gi,' ').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/&[a-z#0-9]+;/gi,'x')); }
 const ignore = { first:0, second:0 };
 const ranges = { first:null, second:null };
 let firstLocked = true;
@@ -763,11 +768,14 @@ let firstLocked = true;
 /* ---------------- saving ---------------- */
 let saveT=null;
 const clean=s=>s.replace(/ class="(pcur|pflash)"/g,'').replace(/ (pcur|pflash)(?=")/g,'');
-function syncDom(){ const p=P(); if(!p||!edsReady) return; for(const k of ['first','second']){ const d=slotDraft(k); if(d){ const h=clean(eds[k].innerHTML); if(h!==d.html){ d.html=h; d.u=Date.now(); } } } }
+const edDirty={first:true,second:true}, wcDirty={first:true,second:true}, wcCache={first:0,second:0};
+for(const k of ['first','second']) new MutationObserver(()=>{ edDirty[k]=true; wcDirty[k]=true; }).observe(eds[k],{childList:true,subtree:true,characterData:true,attributes:true});
+function syncDom(){ const p=P(); if(!p||!edsReady) return; for(const k of ['first','second']){ if(!edDirty[k]) continue; const d=slotDraft(k); if(d){ const h=clean(eds[k].innerHTML); if(h!==d.html){ d.html=h; d.u=Date.now(); } } edDirty[k]=false; } }
 let sbChanged=false, edsReady=false;
-function scheduleSave(){ if(S){ S.savedAt=Date.now(); const p=P(); if(p) p.u=Date.now(); } sbChanged=true; $('#saved').textContent='Saving'; clearTimeout(saveT); saveT=setTimeout(saveNow,700); }
+function scheduleSave(){ if(S){ S.savedAt=Date.now(); const p=P(); if(p) p.u=Date.now(); } sbChanged=true; $('#saved').textContent='Saving'; clearTimeout(saveT); saveT=setTimeout(saveNow,2500); if(!saveFirst) saveFirst=Date.now(); if(Date.now()-saveFirst>20000) saveNow(); }
+let saveFirst=0;
 async function saveNow(){
-  clearTimeout(saveT); syncDom();
+  clearTimeout(saveT); saveFirst=0; syncDom();
   const ok = await store.set('state', S);
   snapshot(false);
   if(sbChanged){ sbChanged=false; dbxSoon('s'); }
@@ -781,7 +789,7 @@ function loadProject(){
   const p=upgrade(P());
   $('#title').value=p.title;
   eds.first.innerHTML=(slotDraft('first')||{}).html||''; eds.second.innerHTML=(slotDraft('second')||{}).html||''; edsReady=true; renderDraftSelects();
-  last.first=words(eds.first.innerText); last.second=words(eds.second.innerText);
+  last.first=edWords('first'); last.second=edWords('second'); lastT.first=lastT.second=Date.now();
   $('#back-chip').hidden=true; returnTop=null; RD.cur=null;
   dock={open:[],list:true}; applyPalette();
   applyParaStyle(); applyMode(); refreshCounts(); renderTabs(); scanNames(); renderSide(); renderRibbons();
@@ -817,10 +825,12 @@ function setFirstEditable(){
 }
 let selW={first:0,second:0};
 function refreshCounts(){
-  $('#count-first').textContent = fmt(words(eds.first.innerText))+' words'+(selW.first?` · ${fmt(selW.first)} selected`:'');
-  $('#count-second').textContent = fmt(words(eds.second.innerText))+' words'+(selW.second?` · ${fmt(selW.second)} selected`:'');
-  buildChapters('first'); buildChapters('second');
+  $('#count-first').textContent = fmt(edWords('first'))+' words'+(selW.first?` · ${fmt(selW.first)} selected`:'');
+  $('#count-second').textContent = fmt(edWords('second'))+' words'+(selW.second?` · ${fmt(selW.second)} selected`:'');
+  clearTimeout(chT); chT=setTimeout(()=>idle(()=>{ buildChapters('first'); buildChapters('second'); }),1500);
 }
+let chT=null;
+const idle=fn=>{ if(window.requestIdleCallback) requestIdleCallback(()=>fn(),{timeout:2000}); else setTimeout(fn,0); };
 function renderTabs(){
   const p=P(); const w=p.knip.reduce((a,k)=>a+k.words,0);
   $('#b-knip').textContent = w ? fmt(w) : '';
@@ -856,7 +866,7 @@ function switchSlot(k,id){
   const p=P(); syncDom(); const other=k==='first'?'second':'first';
   if(p.slots[other]===id) p.slots[other]=p.slots[k];
   p.slots[k]=id;
-  for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; last[s]=words(eds[s].innerText); }
+  for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; last[s]=edWords(s); }
   renderDraftSelects(); refreshCounts(); renderTabs(); scanNames(); scheduleSave(); refreshPanels(); checkMarks(); renderFollowUi();
 }
 for(const k of ['first','second']) $('#sel-'+k).addEventListener('change',e=>{
@@ -904,9 +914,11 @@ function caretNearEnd(k){
   return r.toString().trim().length < 40;
 }
 function track(k){
-  const n=words(eds[k].innerText); let d=n-last[k]-ignore[k]; ignore[k]=0; last[k]=n;
+  const n=edWords(k); let d=n-last[k]-ignore[k]; ignore[k]=0; last[k]=n;
+  const now=Date.now(), el=now-(inStart[k]||now); lastT[k]=now; inStart[k]=null;
+  if(d>Math.max(25, el/1000*6+10) || notTyped[k]) d=0; notTyped[k]=false; // far faster than typing: undo, drag or sync, not new words
   if(d>0){
-    const st=P().stats; st.total+=d; st.days[today()]=(st.days[today()]||0)+d; recordMinute(P(),d);
+    const st=P().stats; st.total+=d; st.days[today()]=(st.days[today()]||0)+d; recordMinute(P(),d); if(S.sprint && S.sprint.sb===P().id && !(LOG&&LOG.paused())){ S.sprint.w=(S.sprint.w||0)+d; }
     if(caretNearEnd(k)) st.forward+=d; else st.mid+=d;
     checkGoals();
   }
@@ -920,9 +932,10 @@ for(const k of ['first','second']){
     const s=getSelection(); s.removeAllRanges(); s.addRange(r);
   });
   eds[k].addEventListener('blur',()=>{ const ed=eds[k]; if(!ed.textContent.trim() && !ed.querySelector('mark')) ed.innerHTML=''; });
-  eds[k].addEventListener('input',()=>{
-    clearTimeout(tT[k]); tT[k]=setTimeout(()=>track(k),450);
-    clearTimeout(scanT); scanT=setTimeout(scanNames,1500);
+  eds[k].addEventListener('input',e=>{
+    if(e&&/^(historyUndo|historyRedo|insertFromDrop|deleteByDrag)$/.test(e.inputType||'')) notTyped[k]=true;
+    inStart[k]=inStart[k]||Date.now(); clearTimeout(tT[k]); tT[k]=setTimeout(()=>track(k),450);
+    clearTimeout(scanT); scanT=setTimeout(()=>idle(scanNames),3000);
     scheduleSave();
   });
   eds[k].addEventListener('paste',e=>{
@@ -946,7 +959,7 @@ let selT=null;
 document.addEventListener('selectionchange',()=>{ clearTimeout(selT); selT=setTimeout(()=>{
   const s=getSelection(); const nw={first:0,second:0};
   if(s.rangeCount && !s.isCollapsed){ const r=s.getRangeAt(0); for(const k of ['first','second']) if(eds[k].contains(r.commonAncestorContainer)) nw[k]=words(r.toString()); }
-  if(nw.first!==selW.first||nw.second!==selW.second){ selW=nw; ['first','second'].forEach(k=>{ $('#count-'+k).textContent=fmt(words(eds[k].innerText))+' words'+(selW[k]?` · ${fmt(selW[k])} selected`:''); }); }
+  if(nw.first!==selW.first||nw.second!==selW.second){ selW=nw; ['first','second'].forEach(k=>{ $('#count-'+k).textContent=fmt(edWords(k))+' words'+(selW[k]?` · ${fmt(selW[k])} selected`:''); }); }
 },120); });
 document.addEventListener('selectionchange',()=>{
   const s=getSelection(); if(!s.rangeCount) return;
@@ -1014,7 +1027,7 @@ function cutToKnip(k){
   const w=words(text);
   P().knip.unshift({id:uid(), text, words:w, date:new Date().toISOString(), from:draftName(k)});
   r.deleteContents(); getSelection().removeAllRanges(); ranges[k]=null;
-  last[k]=words(eds[k].innerText);
+  last[k]=edWords(k);
   refreshCounts(); renderTabs(); scheduleSave(); refreshPanels();
   toast(fmt(w)+' words kept in your clippings');
 }
@@ -1086,24 +1099,30 @@ const findName = w => { if(!w) return null; const l=w.toLowerCase(); return P().
 const nameForms = n => [n.name,...(n.aliases||[])].filter(Boolean).sort((a,b)=>b.length-a.length);
 const nameRx = n => new RegExp('(^|[^\\p{L}])('+nameForms(n).map(reEsc).join('|')+')(?![\\p{L}])','u');
 function paragraphs(k){ const ps=[...eds[k].children].filter(n=>n.textContent.trim()); return ps.length?ps:(eds[k].textContent.trim()?[eds[k]]:[]); }
+const nameCache=new WeakMap();
+const tokRe=/[\p{L}][\p{L}'’-]*/gu, wordCh=/[\p{L}\p{N},;]/u, spaceCh=/\s/;
+function namesIn(t){
+  const out=[]; if(chRe.test(t) && t.trim().length<80) return out;
+  let m; tokRe.lastIndex=0;
+  while((m=tokRe.exec(t))){
+    let w=m[0].replace(/[’']s$/,'').replace(/[-'’]+$/,'');
+    if(w.length<2 || !/^\p{Lu}/u.test(w) || /^\p{Lu}+$/u.test(w) && w.length>3) continue;
+    let i=m.index-1, sp=false; while(i>=0 && spaceCh.test(t[i])){ i--; sp=true; }
+    if(!sp || i<0 || !wordCh.test(t[i])) continue; // after '.', '..', quotes, dashes or a line break = start of a sentence
+    if(STOP.has(w.replace(/['’]/g,''))) continue;
+    out.push(w);
+  }
+  return out;
+}
 function scanNames(){
   const p=P(); if(!p) return;
   const known=new Set(p.names.flatMap(n=>nameForms(n).map(x=>x.toLowerCase())));
   const ign=new Set(p.ignored.map(x=>x.toLowerCase()));
   const counts=new Map();
-  const tokRe=/[\p{L}][\p{L}'’-]*/gu;
   for(const k of ['first','second']) for(const para of paragraphs(k)){
-    const t=para.textContent;
-    if(chRe.test(t) && t.trim().length<80) continue;
-    let m; tokRe.lastIndex=0;
-    while((m=tokRe.exec(t))){
-      let w=m[0].replace(/[’']s$/,'').replace(/[-'’]+$/,'');
-      if(w.length<2 || !/^\p{Lu}/u.test(w) || /^\p{Lu}+$/u.test(w) && w.length>3) continue;
-      const before=t.slice(0,m.index);
-      if(!/[\p{L}\p{N},;]\s+$/u.test(before)) continue; // after '.', '..', quotes, dashes or a line break = start of a sentence
-      if(STOP.has(w.replace(/['’]/g,''))) continue;
-      counts.set(w,(counts.get(w)||0)+1);
-    }
+    const t=para.textContent; let c=nameCache.get(para);
+    if(!c || c.t!==t){ c={t, ws:namesIn(t)}; nameCache.set(para,c); }
+    for(const w of c.ws) counts.set(w,(counts.get(w)||0)+1);
   }
   const now=new Date().toISOString(); let changed=false;
   for(const w of counts.keys()) if(!p.seen[w]){ p.seen[w]=now; changed=true; }
@@ -1550,7 +1569,7 @@ function renderView(folioView, body){
   if(folioView==='progress'){
     const st=p.stats, td=st.days[today()]||0;
     const kw=p.knip.reduce((a,k)=>a+k.words,0);
-    const f=words(eds.first.innerText), s=words(eds.second.innerText);
+    const f=edWords('first'), s=edWords('second');
     h+=`<h2>Progress</h2><p class="intro">Everything here only goes up.</p>`;
     h+=goalStat();
     h+=lengthStat(p);
@@ -1608,7 +1627,7 @@ function renderView(folioView, body){
   const np=body.querySelector('#new-proj'); if(np) np.onclick=()=>{ syncDom(); const q=newProject(); q.u=Date.now(); sbChanged=true; S.projects.push(q); S.activeId=q.id; loadProject(); saveNow(); closeFolio(); $('#title').focus(); $('#title').select(); };
   body.querySelectorAll('[data-imp]').forEach(b=>b.onclick=()=>{ impTarget=b.dataset.imp; $('#file-docx').click(); });
   body.querySelectorAll('[data-rename]').forEach(i=>i.onchange=()=>{ const d=P().drafts.find(x=>x.id===i.dataset.rename); if(d&&i.value.trim()){ d.name=i.value.trim(); renderDraftSelects(); scheduleSave(); } });
-  body.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=async()=>{ const p=P(), d=p.drafts.find(x=>x.id===b.dataset.ddel); if(!await ask(`Delete ${d.name}? Export it to Word first if you want to keep it.`,'Delete')) return; syncDom(); p.drafts=p.drafts.filter(x=>x.id!==d.id); upgrade(p); for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; last[s]=words(eds[s].innerText); } renderDraftSelects(); refreshCounts(); scheduleSave(); renderFolio(); });
+  body.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=async()=>{ const p=P(), d=p.drafts.find(x=>x.id===b.dataset.ddel); if(!await ask(`Delete ${d.name}? Export it to Word first if you want to keep it.`,'Delete')) return; syncDom(); p.drafts=p.drafts.filter(x=>x.id!==d.id); upgrade(p); for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; last[s]=edWords(s); } renderDraftSelects(); refreshCounts(); scheduleSave(); renderFolio(); });
   const ad=body.querySelector('#add-draft'); if(ad) ad.onclick=()=>{ const d=newDraft(null); renderDraftSelects(); scheduleSave(); renderFolio(); toast(`${d.name} added. Pick it on a page to start`); };
   body.querySelectorAll('[data-exp]').forEach(b=>b.onclick=()=>exportDocx(b.dataset.exp));
   const bu=body.querySelector('#backup'); if(bu) bu.onclick=backup;
@@ -1770,7 +1789,7 @@ $('#file-docx').addEventListener('change',async e=>{
   try{
     const res=await readDocx(f);
     d.html=res.html; d.u=Date.now(); scheduleSave();
-    if(k){ eds[k].innerHTML=d.html; last[k]=words(eds[k].innerText); } // imported words don't count as written today
+    if(k){ eds[k].innerHTML=d.html; last[k]=edWords(k); } // imported words don't count as written today
     refreshCounts(); scanNames(); saveNow(); renderFolio();
     toast(res.marks?`Imported into ${d.name}, with your colours`:`Imported into ${d.name}`);
     if(k==='first' && res.marks) checkMarks();
@@ -1976,15 +1995,16 @@ async function dbxSyncAll(){
   }catch(e){ setDbx(dbxErr(e)); if(e&&e.auth){ DBX.token=''; } if(DBX.had){ dbxDirtyS=dbxDirtyS||DBX.had[0]; dbxDirtyL=dbxDirtyL||DBX.had[1]; } }
   DBX.had=null;
   DBX.busy=false;
-  if(dbxDirtyS||dbxDirtyL){ clearTimeout(dbxT); dbxT=setTimeout(dbxSyncAll, navigator.onLine===false?60000:8000); }
+  if(dbxDirtyS||dbxDirtyL){ clearTimeout(dbxT); dbxT=setTimeout(()=>{ dbxT=null; dbxSyncAll(); }, navigator.onLine===false?60000:8000); }
 }
-function dbxSoon(which){ if(!dbxOn()) return; if(which==='l') dbxDirtyL=true; else dbxDirtyS=true; clearTimeout(dbxT); dbxT=setTimeout(dbxSyncAll,4000); }
+let dbxLastPush=0;
+function dbxSoon(which){ if(!dbxOn()) return; if(which==='l') dbxDirtyL=true; else dbxDirtyS=true; if(dbxT) return; const wait=Math.max(5000, 30000-(Date.now()-dbxLastPush)); dbxT=setTimeout(()=>{ dbxT=null; dbxLastPush=Date.now(); dbxSyncAll(); },wait); }
 async function dbxCheck(){
   if(!dbxOn() || DBX.busy || document.visibilityState!=='visible') return;
   try{ const [rs,rl]=await Promise.all([dbxRev(SFILE),dbxRev(LFILE)]); if(rs!==DBX.rev.s || rl!==DBX.rev.l || dbxDirtyS || dbxDirtyL) await dbxSyncAll(); }catch(e){}
 }
 setInterval(dbxCheck,45000);
-document.addEventListener('visibilitychange',()=>{ if(!dbxOn()) return; if(document.visibilityState==='visible') dbxCheck(); else if(dbxDirtyS||dbxDirtyL) dbxSyncAll(); });
+document.addEventListener('visibilitychange',()=>{ if(!dbxOn()) return; if(document.visibilityState==='visible') dbxCheck(); else { Promise.resolve(saveNow()).then(()=>{ if(dbxDirtyS||dbxDirtyL){ clearTimeout(dbxT); dbxT=null; dbxLastPush=Date.now(); dbxSyncAll(); } }); } });
 window.addEventListener('online',()=>dbxCheck());
 async function dbxStartup(){ dbxLoad(); if(!dbxOn()){ dbxPrep(); return; } try{ await Promise.race([dbxSyncAll(), new Promise(r=>setTimeout(r,8000))]); }catch(e){} }
 
@@ -2039,7 +2059,8 @@ const bridge={
   changed(){ dbxSoon('l'); },
   cycle(){ cycleDone(); },
   ask:(m,y)=>ask(m,y),
-  tick(txt){ const b=$('#open-log'); if(!b) return; b.textContent = txt ? '⏱ '+txt : 'Log'; b.setAttribute('aria-pressed', String(!!txt)); const q=$('#quick-sprint'); if(q){ q.textContent = txt ? '■ Stop' : '▶ Sprint'; q.title = txt ? 'Stop this sprint' : 'Start a sprint right away'; } },
+  tick(txt,paused){ const qp=$('#quick-pause'); if(qp){ qp.hidden=!txt; qp.textContent=paused?'▶ Resume':'❚❚ Pause'; qp.setAttribute('aria-pressed',String(!!paused)); }
+    const b=$('#open-log'); if(!b) return; b.textContent = txt ? (paused?'❚❚ ':'⏱ ')+txt : 'Log'; b.setAttribute('aria-pressed', String(!!txt)); const q=$('#quick-sprint'); if(q){ q.textContent = txt ? '■ Stop' : '▶ Sprint'; q.title = txt ? 'Stop this sprint' : 'Start a sprint right away'; } },
   scrollTop(){ $('#logbody').scrollTop=0; },
   onStart(pid,day){
     const p=storyOfLog(pid); if(!p) return;
@@ -2053,7 +2074,7 @@ const bridge={
     const p=storyOfLog(pid); if(!p) return;
     if(p===P()) flushTrack();
     const snap=S.sprint&&S.sprint.sb===p.id?S.sprint:null;
-    if(snap) s.words=Math.max(0,p.stats.total-snap.total);
+    if(snap) s.words=Math.max(0,snap.w||0);
     const pd=day.proj[pid]||(day.proj[pid]={});
     if(pd.startTotal==null && snap) pd.startTotal=snap.ms;
     pd.endTotal=msWords(p);
@@ -2065,6 +2086,7 @@ const bridge={
 function openLog(){ if(LOG) LOG.refresh(); const s=$('#logsheet'); s.inert=false; s.classList.add('open'); s.setAttribute('aria-hidden','false'); }
 function closeLog(){ const s=$('#logsheet'); s.classList.remove('open'); s.inert=true; s.setAttribute('aria-hidden','true'); }
 $('#open-log').onclick=openLog;
+$('#quick-pause').onclick=()=>{ if(!LOG||!LOG.running()) return; flushTrack(); LOG.togglePause(); toast(LOG.paused()?'Sprint paused. Take your time':'Sprint is running again'); };
 $('#quick-sprint').onclick=()=>{ if(!LOG) return; if(LOG.running()){ flushTrack(); LOG.quickStop(); } else { LOG.ensure(P().id,P().title); LOG.quickStart(); toast('Sprint started. Write away'); } };
 $('#log-close').onclick=closeLog;
 function mountLogSheet(){
@@ -2157,7 +2179,7 @@ function markOpeners(){
   }
   CSS.highlights.set('sb-opener',hl);
 }
-for(const k of ['first','second']) eds[k].addEventListener('input',()=>{ clearTimeout(opT); opT=setTimeout(markOpeners,900); });
+for(const k of ['first','second']) eds[k].addEventListener('input',()=>{ clearTimeout(opT); opT=setTimeout(()=>idle(markOpeners),2500); });
 
 /* ================= DATED VERSIONS ================= */
 let SNAP={pid:null,data:null}, snapAt=0, snapShowAll=false;
@@ -2419,7 +2441,7 @@ function projectsExtra(p){
 function mountLog(root,bridge){
 /* ---------- text ---------- */
 const T={en:{
-app:'Writing log',today:'Today',week:'Week',insights:'Insights',books:'Books',settings:'Settings',
+app:'Writing log',pause:'Pause',resume:'Resume',paused:'Paused',today:'Today',week:'Week',insights:'Insights',books:'Books',settings:'Settings',
 synced:'Synced across your devices',local:'Saved on this device',connecting:'Connecting',
 startSprint:'Start sprint',stop:'Stop sprint',openEnded:'open-ended',
 addTitlePh:'Working title',add:'Add',noProjects:'Add your first working title to start.',
@@ -2455,7 +2477,7 @@ best:(a,b,c)=>`On your best days you start around ${a}, write for ${b}, and your
 avgWeek:n=>`You write on ${n} days a week on average.`,
 vs:p=>(p>=0?'+':'')+p+'% vs your average'
 },nl:{
-app:'Schrijflogboek',today:'Vandaag',week:'Week',insights:'Inzichten',books:'Boeken',settings:'Instellingen',
+app:'Schrijflogboek',pause:'Pauze',resume:'Verder',paused:'Gepauzeerd',today:'Vandaag',week:'Week',insights:'Inzichten',books:'Boeken',settings:'Instellingen',
 synced:'Gesynchroniseerd tussen je apparaten',local:'Opgeslagen op dit apparaat',connecting:'Verbinden',
 startSprint:'Start sprint',stop:'Stop sprint',openEnded:'open einde',
 addTitlePh:'Werktitel',add:'Toevoegen',noProjects:'Voeg je eerste werktitel toe om te beginnen.',
@@ -2642,7 +2664,7 @@ function renderSoon(){if(isTyping()||!$('#modal').hidden){pendingRender=true;ret
 root.addEventListener('focusout',()=>setTimeout(()=>{if(pendingRender&&!isTyping()&&$('#modal').hidden){pendingRender=false;render()}},50));
 
 /* ---------- stats ---------- */
-const sprintMin=s=>s.end?(s.end-s.start)/60000:0;
+const sprintMin=s=>s.end?Math.max(0,s.end-s.start-(s.pause||0))/60000:0;
 const phaseOf=(day,pid)=>(day.proj[pid]&&day.proj[pid].phase)||(proj(pid)&&proj(pid).phase)||null;
 function match(day,pid,f){if(!proj(pid))return false;if(f.pid!=='all'&&pid!==f.pid)return false;if(f.phase!=='all'&&phaseOf(day,pid)!==f.phase)return false;return true}
 function dayStats(day,f){
@@ -2720,7 +2742,7 @@ function rTimer(day,isToday){
     <div class="ring"><svg viewBox="0 0 220 220" aria-hidden="true"><circle class="track" cx="110" cy="110" r="96"/><circle id="tm-ring" class="ink" cx="110" cy="110" r="96" stroke-dasharray="603.19" stroke-dashoffset="603.19"/></svg>
       <div class="center"><div class="time" id="tm-time" role="timer">${view.preset?pad(view.preset)+':00':'0:00'}</div><div class="sub" id="tm-sub">${r?esc(proj(r.pid)?proj(r.pid).title:''):(view.preset?'':t('openEnded'))||t('ready')}</div></div></div>
     <div class="presets" role="group" aria-label="minutes">${pre.map(m=>`<button class="preset ${view.preset===m?'on':''}" data-act="preset" data-m="${m}" ${r?'disabled':''} aria-pressed="${view.preset===m}" aria-label="${m?m+' min':t('openEnded')}">${m||'∞'}</button>`).join('')}</div>
-    ${r?`<button class="btn" data-act="stop">${t('stop')}</button>`:`<button class="btn" data-act="start">${t('startSprint')}</button>`}
+    ${r?`<div class="row" style="justify-content:center"><button class="btn soft" data-act="pause">${r.paused?t('resume'):t('pause')}</button><button class="btn" data-act="stop">${t('stop')}</button></div>`:`<button class="btn" data-act="start">${t('startSprint')}</button>`}
     <div style="margin-top:10px"><button class="link" data-act="add-sprint">${t('addByHand')}</button></div>
   </section>`;
 }
@@ -3034,18 +3056,22 @@ function runningDay(){return Object.values(S.days).find(d=>d.running)}
 function tick(){
   const day=runningDay();const tEl=$('#tm-time'),ring=$('#tm-ring');
   if(!day){if(tEl&&view.preset!=null){tEl.textContent=view.preset?pad(view.preset)+':00':'0:00'}if(ring)ring.style.strokeDashoffset=C;bridge.tick(null);return}
-  const r=day.running;const el=Date.now()-r.start;
-  if(r.planned&&el>=r.planned*60000){finishSprint(r.start+r.planned*60000,true);return}
+  const r=day.running;const el=(r.paused||Date.now())-r.start-(r.pauseMs||0);
+  if(!r.paused&&r.planned&&el>=r.planned*60000){finishSprint(r.start+r.planned*60000+(r.pauseMs||0),true);return}
   const show=r.planned?r.planned*60000-el:el;const sec=Math.max(0,Math.floor(show/1000));
   const txt=Math.floor(sec/60)+':'+pad(sec%60);
   if(tEl)tEl.textContent=txt;
   if(ring){const prog=r.planned?el/(r.planned*60000):(el%3600000)/3600000;ring.style.strokeDashoffset=C*(1-prog)}
-  bridge.tick(txt);
+  const sub=$('#tm-sub'); if(sub&&r.paused) sub.textContent=t('paused');
+  bridge.tick(txt,!!r.paused);
 }
 setInterval(tick,1000);
 function chime(){try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();const a=AC;[0,.45].forEach((st,i)=>{const osc=a.createOscillator(),g=a.createGain();osc.type='sine';osc.frequency.value=i?783.99:659.25;const t0=a.currentTime+st;g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(.22,t0+.02);g.gain.exponentialRampToValueAtTime(.0001,t0+1.8);osc.connect(g).connect(a.destination);osc.start(t0);osc.stop(t0+1.9)})}catch(e){}try{navigator.vibrate&&navigator.vibrate([120,80,120])}catch(e){}}
 async function lockScreen(){try{if(navigator.wakeLock)wake=await navigator.wakeLock.request('screen')}catch(e){}}
 function unlockScreen(){try{wake&&wake.release()}catch(e){}wake=null}
+function togglePause(){ const d=runningDay(); if(!d) return; const r=d.running;
+  if(r.paused){ r.pauseMs=(r.pauseMs||0)+(Date.now()-r.paused); r.paused=null; lockScreen(); } else { r.paused=Date.now(); unlockScreen(); }
+  touch(d.date); render(); }
 function startSprint(){
   const pid=currentPid();if(!pid)return;
   try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();AC.resume&&AC.resume()}catch(e){}
@@ -3055,7 +3081,8 @@ function startSprint(){
 }
 function finishSprint(end,auto){
   const day=runningDay();if(!day)return;const r=day.running;
-  const s={id:uid(),pid:r.pid,start:r.start,end:Math.max(end,r.start+1000),planned:r.planned||null,words:null};
+  const pz=(r.pauseMs||0)+(r.paused?Math.max(0,end-r.paused):0);
+  const s={id:uid(),pid:r.pid,start:r.start,end:Math.max(end,r.start+1000),planned:r.planned||null,words:null,pause:pz||undefined};
   day.sprints.push(s);day.running=null;snapshotProj(day,r.pid);try{bridge.onFinish(r.pid,day,s)}catch(e){}try{if(day.block==='b5'&&day.sprints.filter(x=>x.end).length===1)bridge.cycle()}catch(e){}touch(day.date);unlockScreen();
   if(auto)chime();bridge.tick(null);
   if(view.tab==='today'&&view.date===day.date)render();
@@ -3106,6 +3133,7 @@ const ACT={
   preset:b=>{view.preset=+b.dataset.m;render()},
   start:startSprint,
   stop:()=>finishSprint(Date.now(),false),
+  pause:()=>{ togglePause(); },
   'add-sprint':()=>openSprintEditor(view.date,null),
   'edit-sprint':b=>openSprintEditor(view.date,b.dataset.id),
   'close-modal':closeModal,
@@ -3177,7 +3205,7 @@ let lastToday=todayISO();setInterval(()=>{const n=todayISO();if(n!==lastToday){i
 /* ---------- boot ---------- */
 loadLocal();
 render();
-(function resume(){const d=runningDay();if(d&&d.running.planned&&Date.now()-d.running.start>=d.running.planned*60000)finishSprint(d.running.start+d.running.planned*60000,false)})();
+(function resume(){const d=runningDay();if(d&&!d.running.paused&&d.running.planned&&Date.now()-d.running.start-(d.running.pauseMs||0)>=d.running.planned*60000)finishSprint(d.running.start+d.running.planned*60000+(d.running.pauseMs||0),false)})();
 connect();
 function nextBlock(ds){ const prev=allDays().filter(d=>d.block&&/^b[1-5]$/.test(d.block)&&d.date<ds); const l=prev[prev.length-1]; const m=l&&/^b([1-4])$/.exec(l.block); return m?'b'+(+m[1]+1):'b1'; }
 function fillGaps(wrote){
@@ -3212,6 +3240,8 @@ return {
   refresh(){ if(!isTyping()&&$('#modal').hidden) render(); },
   fillGaps,
   running(){ return !!runningDay(); },
+  paused(){ const d=runningDay(); return !!(d&&d.running.paused); },
+  togglePause(){ togglePause(); },
   quickStart(){ if(runningDay()) return; if(view.preset==null) view.preset=S.settings.defaultPreset; startSprint(); },
   quickStop(){ if(runningDay()) finishSprint(Date.now(),false); },
   autoStart(sbId,ts){ const p=byStory(sbId); if(!p) return; const ds=todayISO(), day=dayFor(ds); if(day.start==null){ day.start=ts; touch(ds); renderSoon(); } },
@@ -3300,7 +3330,7 @@ function bumpActive(){
   if(!S) return; const now=Date.now(), gap=now-lastAct; lastAct=now;
   if(gap>0 && gap<120000){ S.active=S.active||{}; S.active[today()]=(S.active[today()]||0)+gap/1000;
     const keys=Object.keys(S.active); if(keys.length>60) keys.sort().slice(0,keys.length-60).forEach(k=>delete S.active[k]);
-    clearTimeout(actT); actT=setTimeout(()=>{ scheduleSave(); checkGoals(); },1500); }
+    clearTimeout(actT); actT=setTimeout(()=>{ checkGoals(); },1500); }
 }
 let actT=null;
 for(const k of ['first','second']){ ['input','keydown','pointerdown'].forEach(ev=>eds[k].addEventListener(ev,bumpActive,{passive:true})); scrolls[k].addEventListener('scroll',bumpActive,{passive:true}); }
@@ -3325,7 +3355,7 @@ function checkGoals(){
     if(S.miles[p.id]===undefined){ S.miles[p.id]=reached; changed=true; }
     else if(reached>S.miles[p.id]){ S.miles[p.id]=reached; changed=true; cheer(pick(CHEER.mile)(p.title,reached),'',false); }
     const tgt=LOG&&LOG.target(p.id);
-    if(tgt){ const q=quarter(msWords(p),tgt); p.lenMiles=p.lenMiles||{};
+    if(tgt && Date.now()-(checkGoals.lenT||0)>30000){ checkGoals.lenT=Date.now(); const q=quarter(msWords(p),tgt); p.lenMiles=p.lenMiles||{};
       if(p.lenMiles[tgt]===undefined){ p.lenMiles[tgt]=q; changed=true; }
       else if(q>p.lenMiles[tgt]){ p.lenMiles[tgt]=q; changed=true; cheer(CHEER.len[q](p.title,tgt),fmt(msWords(p))+' of '+fmt(tgt)+' words',q===4); } }
   }
@@ -3337,7 +3367,7 @@ CHEER.len={1:(t,g)=>`A quarter of ${t} is on the page.`,2:(t,g)=>`Halfway! ${t} 
 CHEER.mark={1:d=>`A quarter of ${d} worked through.`,2:d=>`Halfway through ${d}. Steady and good.`,3:d=>`Three quarters of ${d} done. Keep going.`,4:d=>`You have worked through all of ${d}!`};
 function checkMarks(){
   const p=P(); if(!p||p.mode!=='rewrite') return;
-  const f=words(eds.first.innerText); if(!f) return;
+  const f=edWords('first'); if(!f) return;
   const q=quarter(markWords('g')+markWords('y')+markWords('r'),f);
   const id=p.slots.first; p.markMiles=p.markMiles||{};
   if(p.markMiles[id]===undefined || q<p.markMiles[id]){ p.markMiles[id]=q; scheduleSave(); return; }
