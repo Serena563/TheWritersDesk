@@ -1,6 +1,6 @@
 /* Schrijfbureau: keeps the app on this device so it opens without internet.
    Your writing is not stored here; it lives on your device and in your Dropbox. */
-const CACHE='schrijfbureau-2026-10-29a';
+const CACHE='schrijfbureau-2026-10-29c';
 const CORE=['./','./index.html','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 const LIBS=['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js','https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js','https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js'];
 self.addEventListener('install',e=>{ e.waitUntil(caches.open(CACHE).then(async c=>{ await c.addAll(CORE); for(const u of LIBS){ try{ await c.add(new Request(u,{mode:'cors'})); }catch(x){} } }).then(()=>self.skipWaiting())); });

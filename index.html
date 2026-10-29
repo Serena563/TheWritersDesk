@@ -742,6 +742,13 @@ const store = {
       if(this.mode==='ls'){ localStorage.setItem(k,JSON.stringify(v)); return true; }
     }catch(e){ return false; }
     this.mem[k]=v; return true;
+  },
+  async del(k){
+    try{
+      if(this.mode==='idb') return await new Promise((res,rej)=>{ const t=this.db.transaction('kv','readwrite'); t.objectStore('kv').delete(k); t.oncomplete=()=>res(true); t.onerror=()=>rej(t.error); });
+      if(this.mode==='ls'){ localStorage.removeItem(k); return true; }
+    }catch(e){ return false; }
+    delete this.mem[k]; return true;
   }
 };
 
@@ -779,7 +786,7 @@ let saveFirst=0;
 async function saveNow(){
   clearTimeout(saveT); saveFirst=0; syncDom();
   const ok = await store.set('state', S);
-  snapshot(false);
+  idle(()=>snapshot(false));
   if(sbChanged){ sbChanged=false; dbxSoon('s'); }
   $('#saved').textContent = ok ? (store.mode==='memory' ? 'Not saved on this device: make a backup' : 'Saved') : 'Saving failed: make a backup';
 }
@@ -790,7 +797,7 @@ window.addEventListener('pagehide', saveNow);
 function loadProject(){
   const p=upgrade(P());
   $('#title').value=p.title;
-  eds.first.innerHTML=(slotDraft('first')||{}).html||''; eds.second.innerHTML=(slotDraft('second')||{}).html||''; edsReady=true; renderDraftSelects();
+  eds.first.innerHTML=(slotDraft('first')||{}).html||''; eds.second.innerHTML=(slotDraft('second')||{}).html||''; if(fixSpans(eds.first)|fixSpans(eds.second)) setTimeout(scheduleSave,500); edsReady=true; renderDraftSelects();
   last.first=edWords('first'); last.second=edWords('second'); lastT.first=lastT.second=Date.now();
   $('#back-chip').hidden=true; returnTop=null; RD.cur=null;
   dock={open:[],list:true}; applyPalette();
@@ -868,7 +875,7 @@ function switchSlot(k,id){
   const p=P(); syncDom(); const other=k==='first'?'second':'first';
   if(p.slots[other]===id) p.slots[other]=p.slots[k];
   p.slots[k]=id;
-  for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; last[s]=edWords(s); }
+  for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; if(fixSpans(eds[s])) setTimeout(scheduleSave,500); last[s]=edWords(s); }
   renderDraftSelects(); refreshCounts(); renderTabs(); scanNames(); scheduleSave(); refreshPanels(); checkMarks(); renderFollowUi();
 }
 for(const k of ['first','second']) $('#sel-'+k).addEventListener('change',e=>{
@@ -935,6 +942,7 @@ for(const k of ['first','second']){
   });
   eds[k].addEventListener('blur',()=>{ const ed=eds[k]; if(!ed.textContent.trim() && !ed.querySelector('mark')) ed.innerHTML=''; });
   eds[k].addEventListener('input',e=>{
+    if(eds[k].querySelector('span[style],font')) fixSpans(eds[k]);
     if(e&&/^(historyUndo|historyRedo|insertFromDrop|deleteByDrag)$/.test(e.inputType||'')) notTyped[k]=true;
     inStart[k]=inStart[k]||Date.now(); clearTimeout(tT[k]); tT[k]=setTimeout(()=>track(k),450);
     clearTimeout(scanT); scanT=setTimeout(()=>idle(scanNames),3000);
@@ -980,9 +988,27 @@ function liveRange(k){
   return null;
 }
 
+/* the browser sometimes turns a colour into a look-alike (after joining paragraphs or dragging text): turn it back into a real colour */
+const MARK_RGB={'110,160,105':'g','226,186,60':'y','205,100,85':'r'};
+function fixSpans(ed){
+  if(!ed) return false; let changed=false;
+  ed.querySelectorAll('span[style],font').forEach(sp=>{
+    if(!sp.isConnected) return;
+    const bg=(sp.style&&sp.style.backgroundColor||'').replace(/\s/g,'');
+    const m=bg.match(/^rgba?\((\d+),(\d+),(\d+)/); const cls=m&&MARK_RGB[m[1]+','+m[2]+','+m[3]];
+    const it=sp.style&&sp.style.fontStyle==='italic', bd=sp.style&&/^(bold|[6-9]00)$/.test(sp.style.fontWeight||'');
+    let inner=document.createDocumentFragment(); while(sp.firstChild) inner.appendChild(sp.firstChild);
+    if(it){ const e=document.createElement('em'); e.appendChild(inner); inner=e; }
+    if(bd){ const e=document.createElement('strong'); e.appendChild(inner); inner=e; }
+    if(cls && !sp.closest('mark')){ const mk=document.createElement('mark'); mk.className=cls; mk.appendChild(inner); inner=mk; }
+    sp.parentNode.replaceChild(inner,sp); changed=true;
+  });
+  return changed;
+}
 /* ---------------- colour marks ---------------- */
 function markRange(range, cls){
   const root=eds.first; const gid='m'+uid();
+  fixSpans(root);
   const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
   const parts=[];
   while(walker.nextNode()){
@@ -1652,7 +1678,7 @@ function renderView(folioView, body){
   const np=body.querySelector('#new-proj'); if(np) np.onclick=()=>{ syncDom(); const q=newProject(); q.u=Date.now(); sbChanged=true; S.projects.push(q); S.activeId=q.id; loadProject(); saveNow(); closeFolio(); $('#title').focus(); $('#title').select(); };
   body.querySelectorAll('[data-imp]').forEach(b=>b.onclick=()=>{ impTarget=b.dataset.imp; $('#file-docx').click(); });
   body.querySelectorAll('[data-rename]').forEach(i=>i.onchange=()=>{ const d=P().drafts.find(x=>x.id===i.dataset.rename); if(d&&i.value.trim()){ d.name=i.value.trim(); renderDraftSelects(); scheduleSave(); } });
-  body.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=async()=>{ const p=P(), d=p.drafts.find(x=>x.id===b.dataset.ddel); if(!await ask(`Delete ${d.name}? Export it to Word first if you want to keep it.`,'Delete')) return; syncDom(); p.drafts=p.drafts.filter(x=>x.id!==d.id); upgrade(p); for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; last[s]=edWords(s); } renderDraftSelects(); refreshCounts(); scheduleSave(); renderFolio(); });
+  body.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=async()=>{ const p=P(), d=p.drafts.find(x=>x.id===b.dataset.ddel); if(!await ask(`Delete ${d.name}? Export it to Word first if you want to keep it.`,'Delete')) return; syncDom(); p.drafts=p.drafts.filter(x=>x.id!==d.id); upgrade(p); for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; if(fixSpans(eds[s])) setTimeout(scheduleSave,500); last[s]=edWords(s); } renderDraftSelects(); refreshCounts(); scheduleSave(); renderFolio(); });
   const ad=body.querySelector('#add-draft'); if(ad) ad.onclick=()=>{ const d=newDraft(null); renderDraftSelects(); scheduleSave(); renderFolio(); toast(`${d.name} added. Pick it on a page to start`); };
   body.querySelectorAll('[data-exp]').forEach(b=>b.onclick=()=>exportDocx(b.dataset.exp));
   const bu=body.querySelector('#backup'); if(bu) bu.onclick=backup;
@@ -1989,6 +2015,7 @@ function mergeStates(L,R){
 /* ---- pulling and pushing ---- */
 function activeSig(){ const p=P(); return p?p.id+'|'+p.drafts.map(d=>d.id+':'+d.html.length+':'+(d.u||0)).join(','):''; }
 async function dbxPullS(){
+  if(DBX.rev.s){ try{ const rv=await dbxRev(SFILE); if(rv && rv===DBX.rev.s) return; }catch(e){} }
   const f=await dbxDown(SFILE); if(!f){ dbxDirtyS=true; return; }
   if(f.rev===DBX.rev.s) return;
   syncDom(); const before=activeSig(), top={first:scrolls.first.scrollTop, second:scrolls.second.scrollTop};
@@ -2008,7 +2035,9 @@ async function dbxPullS(){
   if(m.copies) toast('Both devices changed the same draft. Your version from this device is kept as an extra draft');
 }
 async function dbxPullL(){
-  if(!LOG) return; const f=await dbxDown(LFILE); if(!f){ dbxDirtyL=true; return; }
+  if(!LOG) return;
+  if(DBX.rev.l){ try{ const rv=await dbxRev(LFILE); if(rv && rv===DBX.rev.l) return; }catch(e){} }
+  const f=await dbxDown(LFILE); if(!f){ dbxDirtyL=true; return; }
   if(f.rev===DBX.rev.l) return;
   const won=LOG.mergeIn(JSON.parse(f.text)); DBX.rev.l=f.rev; dbxSave(); if(won) dbxDirtyL=true;
 }
@@ -2223,33 +2252,81 @@ function markOpeners(){
 for(const k of ['first','second']) eds[k].addEventListener('input',()=>{ clearTimeout(opT); opT=setTimeout(()=>idle(markOpeners),2500); });
 
 /* ================= DATED VERSIONS ================= */
-let SNAP={pid:null,data:null}, snapAt=0, snapShowAll=false;
-async function loadSnaps(pid){ const d=await store.get('snap:'+pid); SNAP={pid,data:(d&&d.dates)?d:{dates:{}}}; }
-function lastSnapHtml(d,id){ const ds=Object.keys(d.dates).sort().reverse(); for(const x of ds){ const e=d.dates[x][id]; if(e) return e.html; } return null; }
-function weekKey(ds){ const d=new Date(ds+'T12:00:00'); const w=(d.getDay()+6)%7; d.setDate(d.getDate()-w); return d.toISOString().slice(0,10); }
-function pruneSnaps(d){
-  const cut=new Date(Date.now()-60*864e5).toISOString().slice(0,10);
-  const old=Object.keys(d.dates).filter(x=>x<cut).sort();
-  const byWeek={}; old.forEach(x=>{ (byWeek[weekKey(x)]=byWeek[weekKey(x)]||[]).push(x); });
-  for(const list of Object.values(byWeek)){
-    if(list.length<2) continue; const keep=list[list.length-1];
-    for(const x of list.slice(0,-1)){ for(const [id,e] of Object.entries(d.dates[x])) if(!d.dates[keep][id]) d.dates[keep][id]=e; delete d.dates[x]; }
+/* each day's copies live in their own little box, so saving only touches today's box */
+let SNAP={pid:null,data:null,today:null}, snapAt=0, snapShowAll=false;
+const snapIdxKey=pid=>'snapi:'+pid, snapDayKey=(pid,day)=>'snapd:'+pid+':'+day;
+function hashStr(s){ let h=2166136261; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return (h>>>0).toString(36)+'.'+s.length; }
+async function loadSnaps(pid){
+  let idx=await store.get(snapIdxKey(pid));
+  if(!(idx&&idx.dates)){
+    idx={dates:{}};
+    const old=await store.get('snap:'+pid);
+    if(old&&old.dates){ // move the old single bundle into one box per day, once
+      for(const [day,ent] of Object.entries(old.dates)){
+        const dd={}; for(const [id,e] of Object.entries(ent)){ dd[id]={name:e.name,words:e.words,h:hashStr(e.html||'')}; }
+        await store.set(snapDayKey(pid,day),ent); idx.dates[day]=dd;
+      }
+    }
+    await store.set(snapIdxKey(pid),idx);
+    if(old) await store.del('snap:'+pid);
   }
+  SNAP={pid,data:idx,today:null};
+  setTimeout(()=>idle(()=>pruneSnaps(pid)),20000);
 }
+function lastSnapHash(d,id){ const ds=Object.keys(d.dates).sort().reverse(); for(const x of ds){ const e=d.dates[x][id]; if(e) return e.h; } return null; }
+function weekKey(ds){ const d=new Date(ds+'T12:00:00'); const w=(d.getDay()+6)%7; d.setDate(d.getDate()-w); return d.toISOString().slice(0,10); }
+async function pruneSnaps(pid){
+  try{
+    if(SNAP.pid!==pid) return; const d=SNAP.data;
+    const cut=new Date(Date.now()-60*864e5).toISOString().slice(0,10);
+    const old=Object.keys(d.dates).filter(x=>x<cut).sort();
+    const byWeek={}; old.forEach(x=>{ (byWeek[weekKey(x)]=byWeek[weekKey(x)]||[]).push(x); });
+    let changed=false;
+    for(const list of Object.values(byWeek)){
+      if(list.length<2) continue; const keep=list[list.length-1];
+      let keepBox=null;
+      for(const x of list.slice(0,-1)){
+        const missing=Object.keys(d.dates[x]).filter(id=>!d.dates[keep][id]);
+        if(missing.length){ keepBox=keepBox||(await store.get(snapDayKey(pid,keep)))||{}; const box=(await store.get(snapDayKey(pid,x)))||{};
+          missing.forEach(id=>{ if(box[id]){ keepBox[id]=box[id]; d.dates[keep][id]=d.dates[x][id]; } }); }
+        delete d.dates[x]; await store.del(snapDayKey(pid,x)); changed=true;
+      }
+      if(keepBox) await store.set(snapDayKey(pid,keep),keepBox);
+    }
+    if(changed) await store.set(snapIdxKey(pid),d);
+  }catch(e){}
+}
+async function snapBox(pid,day){ return (await store.get(snapDayKey(pid,day)))||null; }
+let snapBusy=false;
 async function snapshot(force){
+  if(snapBusy) return; snapBusy=true;
   try{
     const p=P(); if(!p || store.mode==='memory') return;
     if(!force && Date.now()-snapAt<120000) return;
     if(SNAP.pid!==p.id) await loadSnaps(p.id);
-    const d=SNAP.data, day=today(); let changed=false; syncDom();
+    const d=SNAP.data, day=today(); syncDom();
+    const changedDrafts=[];
     for(const dr of p.drafts){
-      const plain=dr.html.replace(/<[^>]+>/g,'').trim(); if(!plain) continue;
-      if(lastSnapHtml(d,dr.id)===dr.html) continue;
-      (d.dates[day]=d.dates[day]||{})[dr.id]={name:dr.name, html:dr.html, words:words(dr.html.replace(/<\/(p|h2)>/g,' ').replace(/<[^>]+>/g,' '))};
-      changed=true;
+      if(!dr.html) continue;
+      const h=hashStr(dr.html);
+      if(lastSnapHash(d,dr.id)===h) continue;
+      if(!dr.html.replace(/<[^>]+>/g,'').trim()) continue;
+      changedDrafts.push([dr,h]);
     }
-    if(changed){ snapAt=Date.now(); pruneSnaps(d); await store.set('snap:'+p.id,d); if(folioView==='projects') renderFolio(); }
+    snapAt=Date.now();
+    if(!changedDrafts.length) return;
+    if(!SNAP.today || SNAP.today.day!==day || SNAP.today.pid!==p.id) SNAP.today={pid:p.id, day, box:(await snapBox(p.id,day))||{}};
+    const box=SNAP.today.box;
+    for(const [dr,h] of changedDrafts){
+      const w=words(dr.html.replace(/<\/(p|h2)>/g,' ').replace(/<[^>]+>/g,' '));
+      box[dr.id]={name:dr.name, html:dr.html, words:w};
+      (d.dates[day]=d.dates[day]||{})[dr.id]={name:dr.name, words:w, h};
+    }
+    await store.set(snapDayKey(p.id,day),box);
+    await store.set(snapIdxKey(p.id),d);
+    if(folioView==='projects') renderFolio();
   }catch(e){}
+  finally{ snapBusy=false; }
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') snapshot(true); });
 
@@ -2450,7 +2527,7 @@ function bindExtra(body,view){
   if(view==='projects'){
     bindDropbox(body);
     bindSafety(body);
-    body.querySelectorAll('[data-snapx]').forEach(b=>b.onclick=()=>{ const [date,id]=b.dataset.snapx.split('|'); const e=SNAP.data&&SNAP.data.dates[date]&&SNAP.data.dates[date][id]; if(e) exportDocx(id,{html:e.html,name:e.name,date}); });
+    body.querySelectorAll('[data-snapx]').forEach(b=>b.onclick=()=>{ const [date,id]=b.dataset.snapx.split('|'); const p=P(); snapBox(p.id,date).then(box=>{ const e=box&&box[id]; if(e) exportDocx(id,{html:e.html,name:e.name,date}); else toast('This copy could not be found on this device'); }); });
     const sa=body.querySelector('#snap-all'); if(sa) sa.onclick=()=>{ snapShowAll=true; renderFolio(); };
   }
   if(view==='progress'){ bindGoal(body); const ol=body.querySelector('#open-log2'); if(ol) ol.onclick=()=>{ closeFolio(); openLog(); }; }
@@ -3705,7 +3782,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-10-29a';
+const APP_VERSION='2026-10-29c';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
