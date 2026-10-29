@@ -994,17 +994,23 @@ function markRange(range, cls){
   }
   for(const [n,s,e] of parts){
     let t=n; if(e<t.nodeValue.length) t.splitText(e); if(s>0) t=t.splitText(s);
-    const p=t.parentNode;
-    if(p.nodeName==='MARK'){
-      const after=p.cloneNode(false);
-      while(t.nextSibling) after.appendChild(t.nextSibling);
-      p.parentNode.insertBefore(t,p.nextSibling);
-      if(after.firstChild) t.parentNode.insertBefore(after,t.nextSibling);
-      if(!p.firstChild) p.remove();
+    /* lift the text out of every colour it sits in, also when italics or bold sit in between */
+    for(let m=t.parentNode; m && m!==root; m=m.parentNode){
+      if(m.nodeName!=='MARK') continue;
+      const r1=document.createRange(); r1.setStart(m,0); r1.setEndBefore(t);
+      const bf=r1.extractContents();
+      const r2=document.createRange(); r2.setStartAfter(t); r2.setEnd(m,m.childNodes.length);
+      const af=r2.extractContents();
+      if(bf.textContent.length){ const b=m.cloneNode(false); b.appendChild(bf); m.parentNode.insertBefore(b,m); }
+      if(af.textContent.length){ const a=m.cloneNode(false); a.appendChild(af); m.parentNode.insertBefore(a,m.nextSibling); }
+      const up=m.parentNode; while(m.firstChild) up.insertBefore(m.firstChild,m); m.remove(); m=up;
+      if(m===root) break;
+      m={nodeName:'',parentNode:t.parentNode}; // start again from the text itself
     }
     if(cls!=='none'){ const m=document.createElement('mark'); m.className=cls; m.dataset.g=gid; t.parentNode.insertBefore(m,t); m.appendChild(t); }
   }
   root.querySelectorAll('mark').forEach(m=>{
+    if(!m.isConnected) return;
     let nx=m.nextSibling;
     while(nx && nx.nodeName==='MARK' && nx.className===m.className){ while(nx.firstChild) m.appendChild(nx.firstChild); const d=nx; nx=nx.nextSibling; d.remove(); }
     if(!m.textContent.length) m.remove();
@@ -2449,16 +2455,40 @@ function bindExtra(body,view){
   }
   if(view==='progress'){ bindGoal(body); const ol=body.querySelector('#open-log2'); if(ol) ol.onclick=()=>{ closeFolio(); openLog(); }; }
 }
+const NLx=()=>LOG&&LOG.lang&&LOG.lang()==='nl';
+const tr=(en,nl)=>NLx()?nl:en;
+function paceOf(p){
+  const days=(p.stats&&p.stats.days)||{}; let tot=0,n=0;
+  for(let i=0;i<56;i++){ const d=new Date(); d.setDate(d.getDate()-i); const k=d.toISOString().slice(0,10); const w=days[k]||0; if(w>0){ tot+=w; n++; } }
+  return {perWeek:tot/8, perDay:n?tot/n:0, days:n};
+}
+function projStat(p){
+  const tgt=LOG&&LOG.target(p.id); if(!tgt) return '';
+  const have=msWords(p), left=tgt-have; if(left<=0) return '';
+  const pc=paceOf(p); if(pc.days<2||pc.perWeek<=0) return `<div class="stat"><div class="k">${tr('When it could be done','Wanneer het af kan zijn')}</div><div class="s">${tr('After a few more writing days you will see here when this draft could be finished, at your own pace.','Na nog een paar schrijfdagen zie je hier wanneer deze versie af kan zijn, in je eigen tempo.')}</div></div>`;
+  const when=w=>{ const d=new Date(); d.setDate(d.getDate()+Math.ceil(left/w*7)); return d.toLocaleDateString(NLx()?'nl-NL':'en-GB',{month:'long',year:'numeric'}); };
+  const a=when(pc.perWeek), b=when(pc.perWeek+pc.perDay);
+  return `<div class="stat"><div class="k">${tr('When it could be done','Wanneer het af kan zijn')}</div><span class="big" style="font-size:1.8rem">${esc(a)}</span>
+    <div class="s">${tr(`At your pace of the last eight weeks, about ${fmt(Math.round(pc.perWeek))} words a week, with ${fmt(left)} words to go.`,`In je tempo van de laatste acht weken, ongeveer ${fmt(Math.round(pc.perWeek))} woorden per week, met nog ${fmt(left)} woorden te gaan.`)}
+    ${a!==b?tr(` With one extra writing day a week: ${esc(b)}.`,` Met één schrijfdag per week extra: ${esc(b)}.`):''}</div></div>`;
+}
 function progressExtra(p){
   if(!LOG) return '';
-  const b=LOG.blocks(); let h='';
-  if(b){
+  let h='';
+  try{
+    const rw=LOG.rhythmWeek(weekStartOf(today())), kw=LOG.keptWeeks();
     let line;
-    if(/^b[1-5]$/.test(b.last)) line=`You are in block ${b.last.slice(1)} of 5 of this cycle.`;
-    else if(b.last==='winter') line=`Wintering, day ${b.winter}. Rest is part of the work.`;
-    else line='A free day. The blocks wait for you, they do not go anywhere.';
-    h+=`<div class="stat"><div class="k">Writing blocks done</div><span class="big">${fmt(b.total)}</span><div class="s">${line}</div></div>`;
-  }
+    if(!rw.anchors) line=tr('You have no fixed writing day set. You can choose one in the writing log, under Settings.','Je hebt geen vaste schrijfdag ingesteld. Dat kan in het schrijflogboek, bij Instellingen.');
+    else if(rw.done&&rw.moved) line=tr('Your fixed day moved this week, and you still made it. That counts.','Je vaste dag schoof deze week door, en het is je gelukt. Dat telt.');
+    else if(rw.done) line=tr('Your fixed writing day is done this week.','Je vaste schrijfdag is deze week gedaan.');
+    else if(rw.open) line=tr('Your fixed writing day is still ahead of you this week.','Je vaste schrijfdag komt deze week nog.');
+    else line=tr('Not this week. Next week is a new one.','Deze week niet. Volgende week is een nieuwe.');
+    if(rw.bonus) line+=' '+tr(`Plus ${rw.bonus} bonus ${rw.bonus===1?'day':'days'}.`,`Plus ${rw.bonus} ${rw.bonus===1?'bonusdag':'bonusdagen'}.`);
+    const dots=kw.recent.map(w=>`<span title="${esc(w.ws)}" style="display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px;${w.done?'background:#8fb685':'box-shadow:inset 0 0 0 1px rgba(42,35,27,.25)'}"></span>`).join('');
+    h+=`<div class="stat"><div class="k">${tr('This week','Deze week')}</div><div class="s" style="margin-top:.1rem">${line}</div></div>`;
+    h+=`<div class="stat"><div class="k">${tr('Weeks you kept your fixed day','Weken dat je je vaste dag nakwam')}</div><span class="big">${fmt(kw.n)}</span>${dots?`<div style="margin:.5rem 0 .2rem">${dots}</div>`:''}<div class="s">${tr('Every one of these is proof you can count on yourself. A moved day counts too.','Elk van deze weken is bewijs dat je op jezelf kunt rekenen. Een doorgeschoven dag telt ook.')}</div></div>`;
+  }catch(e){}
+  h+=projStat(p);
   h+=`<div class="stat"><div class="row"><button class="fbtn strong" id="open-log2">Open the writing log</button></div><div class="s">Sprints, your days, weeks and patterns.</div></div>`;
   return h;
 }
@@ -2487,7 +2517,7 @@ writingTime:'Writing time',breaks:'Breaks',span:'Day span',ready:'Ready when you
 words:'Words',fromSprints:'Words from sprints',msStart:'Manuscript at start',msEnd:'Manuscript at end',net:'Change in manuscript',
 moved:'Moved out',movedHint:'cut but kept in another file',outside:'Outside the draft',outsideHint:'worldbuilding, notes, research',
 rewritten:'Rewritten inside the draft',rewrittenHint:'words you redid instead of moving on',phase:'Phase',felt:'I can feel the ending',
-howToday:'How today is',block:'Writing cycle',mood:'Mood',energy:'Energy',stress:'Stress',life:'Life load',sensory:'Sensory load',care:'Caregiving load',
+howToday:'How today is',block:'Kind of day',daypart:'Time of day',myWeek:'Your week',rhythmIntro:'Which kind of day is each weekday? A missed fixed day can move to a bonus day in the same week.',dayparts:'Times of day (your Daylio moments)',closeDay:'Close the day',closeIntro:'Only if you want to. Three small lines, so this day can end here.',closeWell:'What went well',closeHard:'What got in the way',closeLeave:'What I am not taking with me',beginQ:'Begin with 15 minutes',anchorToday:'Today is your fixed writing day. You do not have to know how much you have. Just begin: fifteen minutes. If it flows, keep going. If not, the day moves to a bonus day.',anchorDone:'Your fixed writing day is done. Everything from here is extra.',bonusToday:'A bonus day. Only if it feels right, nothing has to.',restToday:'A day to recover. Nothing has to happen today.',nowriteToday:'Not a writing day. That is part of the plan.',anchorMoved:'This week your fixed day moved to today. That counts.',mood:'Mood',energy:'Energy',stress:'Stress',life:'Life load',sensory:'Sensory load',care:'Caregiving load',
 cycle:'Cycle',body:'Body',weather:'Weather',season:'Season',place:'Where',company:'With whom',sound:'Sound',note:'Note',notePh:'Anything that does not fit the boxes',
 low:'low',high:'high',cycleDay:'Cycle day',periodToday:'Period started this day',undoPeriod:'Undo period start',firstPeriod:'First day of your last period',
 wordsPrompt:'How many words did you write?',save:'Save',later:'Later',del:'Delete sprint',cancel:'Cancel',start:'Start time',length:'Minutes',book:'Book',
@@ -2523,7 +2553,7 @@ writingTime:'Schrijftijd',breaks:'Pauzes',span:'Duur van de dag',ready:'Klaar al
 words:'Woorden',fromSprints:'Woorden uit sprints',msStart:'Manuscript bij start',msEnd:'Manuscript aan het eind',net:'Verschil in manuscript',
 moved:'Verplaatst',movedHint:'geknipt maar bewaard in ander bestand',outside:'Buiten het manuscript',outsideHint:'worldbuilding, notities, onderzoek',
 rewritten:'Herschreven in het manuscript',rewrittenHint:'woorden die je opnieuw deed i.p.v. door te gaan',phase:'Fase',felt:'Ik voel het einde',
-howToday:'Hoe vandaag is',block:'Schrijfcyclus',mood:'Stemming',energy:'Energie',stress:'Stress',life:'Levenslast',sensory:'Prikkellast',care:'Zorglast',
+howToday:'Hoe vandaag is',block:'Soort dag',daypart:'Dagdeel',myWeek:'Jouw week',rhythmIntro:'Welke soort dag is elke weekdag? Een gemiste vaste dag mag doorschuiven naar een bonusdag in dezelfde week.',dayparts:'Dagdelen (je Daylio-momenten)',closeDay:'De dag afsluiten',closeIntro:'Alleen als je wilt. Drie kleine regels, zodat deze dag hier kan eindigen.',closeWell:'Wat lukte',closeHard:'Wat zat dwars',closeLeave:'Wat ik niet meeneem',beginQ:'Begin met een kwartier',anchorToday:'Vandaag is je vaste schrijfdag. Je hoeft niet te weten hoeveel je hebt. Begin gewoon: een kwartier. Loopt het, schrijf dan door. Zo niet, dan schuift de dag door naar een bonusdag.',anchorDone:'Je vaste schrijfdag is gedaan. Alles vanaf hier is extra.',bonusToday:'Een bonusdag. Alleen als het goed voelt, niks moet.',restToday:'Een bijkomdag. Vandaag hoeft er niets.',nowriteToday:'Geen schrijfdag. Dat hoort bij het plan.',anchorMoved:'Je vaste dag van deze week is doorgeschoven naar vandaag. Dat telt.',mood:'Stemming',energy:'Energie',stress:'Stress',life:'Levenslast',sensory:'Prikkellast',care:'Zorglast',
 cycle:'Cyclus',body:'Lichaam',weather:'Weer',season:'Seizoen',place:'Waar',company:'Met wie',sound:'Geluid',note:'Notitie',notePh:'Alles wat niet in de vakjes past',
 low:'laag',high:'hoog',cycleDay:'Cyclusdag',periodToday:'Menstruatie begon deze dag',undoPeriod:'Menstruatiestart ongedaan maken',firstPeriod:'Eerste dag van je laatste menstruatie',
 wordsPrompt:'Hoeveel woorden heb je geschreven?',save:'Opslaan',later:'Later',del:'Sprint verwijderen',cancel:'Annuleren',start:'Starttijd',length:'Minuten',book:'Boek',
@@ -2551,7 +2581,7 @@ vs:p=>(p>=0?'+':'')+p+'% t.o.v. je gemiddelde'
 }};
 const O={en:{
 'first-draft':'First draft',rewrite:'Rewrite',edit:'Edit',polish:'Polish',worldbuilding:'Worldbuilding',exploring:'Exploring',
-b1:'Block 1',b2:'Block 2',b3:'Block 3',b4:'Block 4',b5:'Block 5',winter:'Wintering day',free:'Free day',
+b1:'Block 1',b2:'Block 2',b3:'Block 3',b4:'Block 4',b5:'Block 5',winter:'Wintering day',free:'Free day',rest:'Recovery day',anchor:'Fixed writing day',nowrite:'No writing',bonus:'Bonus day',dp0:'Night',dp1:'Morning',dp2:'Noon',dp3:'Afternoon',dp4:'Evening',
 soft:'Soft',medium:'Medium',heavy:'Heavy',
 menstrual:'Period',follicular:'Follicular',ovulation:'Ovulation',luteal:'Luteal',
 spring:'Spring',summer:'Summer',autumn:'Autumn',wintersn:'Winter',
@@ -2563,7 +2593,7 @@ cramps:'Cramps',headache:'Headache',tired:'Tired',restless:'Restless',bloated:'B
 morning:'Morning',afternoon:'Afternoon',evening:'Evening',night:'Night',open:'Open-ended'
 },nl:{
 'first-draft':'Eerste versie',rewrite:'Herschrijven',edit:'Redigeren',polish:'Polijsten',worldbuilding:'Worldbuilding',exploring:'Verkennen',
-b1:'Blok 1',b2:'Blok 2',b3:'Blok 3',b4:'Blok 4',b5:'Blok 5',winter:'Overwinterdag',free:'Vrije dag',
+b1:'Blok 1',b2:'Blok 2',b3:'Blok 3',b4:'Blok 4',b5:'Blok 5',winter:'Overwinterdag',free:'Vrije dag',rest:'Bijkomdag',anchor:'Vaste schrijfdag',nowrite:'Geen schrijfdag',bonus:'Bonusdag',dp0:'Nacht',dp1:'Ochtend',dp2:'Middag',dp3:'Namiddag',dp4:'Avond',
 soft:'Zacht',medium:'Middel',heavy:'Zwaar',
 menstrual:'Menstruatie',follicular:'Folliculair',ovulation:'Ovulatie',luteal:'Luteaal',
 spring:'Lente',summer:'Zomer',autumn:'Herfst',wintersn:'Winter',
@@ -2609,9 +2639,39 @@ const LISTS={
 };
 const SHOW_KEYS=['block','mood','energy','stress','life','sensory','care','cycle','body','weather','place','company','sound','note'];
 function defaultSettings(){return{lang:'en',u:0,activeProject:null,projects:[],lists:clone(LISTS),
-  show:Object.fromEntries(SHOW_KEYS.map(k=>[k,true])),cycle:{starts:[],length:28},defaultPreset:25}}
+  show:Object.fromEntries(SHOW_KEYS.map(k=>[k,true])),cycle:{starts:[],length:28},defaultPreset:25,
+  rhythm:{0:'free',1:'rest',2:'anchor',3:'nowrite',4:'bonus',5:'bonus',6:'free'},dayparts:['07:00','10:45','14:30','18:15','22:00']}}
 function normSettings(s){const d=defaultSettings();s=s||{};
-  return{...d,...s,lists:{...d.lists,...(s.lists||{})},show:{...d.show,...(s.show||{})},cycle:{...d.cycle,...(s.cycle||{})},projects:(s.projects||[])}}
+  return{...d,...s,lists:{...d.lists,...(s.lists||{})},show:{...d.show,...(s.show||{})},cycle:{...d.cycle,...(s.cycle||{})},rhythm:{...d.rhythm,...(s.rhythm||{})},dayparts:(Array.isArray(s.dayparts)&&s.dayparts.length===5?s.dayparts:d.dayparts),projects:(s.projects||[])}}
+const DAYTYPES=['rest','anchor','nowrite','bonus','free'];
+function typeOf(ds){const d=S.days[ds];if(d&&DAYTYPES.includes(d.block))return d.block;return S.settings.rhythm[parseISO(ds).getDay()]||'free'}
+function dpMins(){return S.settings.dayparts.map(x=>{const[h,m]=String(x).split(':').map(Number);return h*60+(m||0)})}
+function daypartsOf(day){const b=dpMins(),t0=parseISO(day.date).getTime(),out=new Set();
+  for(const s of day.sprints.filter(x=>x.end)){const a=(s.start-t0)/60000,z=(s.end-t0)/60000;
+    for(let i=0;i<4;i++){if(a<b[i+1]&&z>b[i])out.add('dp'+(i+1))}
+    if(a<b[0]||z>b[4])out.add('dp0')}
+  return ['dp1','dp2','dp3','dp4','dp0'].filter(k=>out.has(k))}
+function wroteLog(ds){const d=S.days[ds];if(d&&d.sprints.some(x=>x.end))return true;try{return (bridge.dayWords&&Object.values(S.settings.projects).some(p=>p.sbId&&bridge.dayWords(p.id,ds)>0))}catch(e){return false}}
+function rhythmWeek(ws){
+  const td=todayISO(),dates=[...Array(7)].map((_,i)=>addDays(ws,i));
+  const info=dates.map(ds=>({ds,type:typeOf(ds),wrote:ds<=td&&wroteLog(ds),past:ds<td,today:ds===td}));
+  const anchors=info.filter(x=>x.type==='anchor');
+  const spare=info.filter(x=>x.type!=='anchor'&&x.wrote);
+  let kept=0,moved=0,open=0,movedTo=[];
+  for(const a of anchors){
+    if(a.wrote){kept++;continue}
+    const i=spare.findIndex(x=>x.ds>a.ds);
+    if(i>=0){moved++;movedTo.push(spare[i].ds);spare.splice(i,1);continue}
+    if(!a.past||info.some(x=>x.ds>a.ds&&!x.past&&(x.type==='bonus')))open++;
+  }
+  const bonus=spare.length;
+  const done=anchors.length>0&&kept+moved>=anchors.length;
+  return{dates,info,anchors:anchors.length,kept,moved,open,bonus,done,movedTo,wroteDays:info.filter(x=>x.wrote).length}}
+function keptWeeks(){
+  const all=allDays().filter(d=>d.sprints.some(x=>x.end));if(!all.length)return{n:0,recent:[]};
+  const cur=weekStart(todayISO());let ws=weekStart(all[0].date),n=0;const hist=[];
+  while(ws<=cur){const r=rhythmWeek(ws);if(r.done)n++;hist.push({ws,done:r.done,moved:r.moved>0});ws=addDays(ws,7)}
+  return{n,recent:hist.slice(-8)}}
 function newDay(date){return{date,u:0,start:null,end:null,block:null,mood:null,energy:null,stress:null,life:null,sensory:null,care:null,
   body:[],weather:[],place:null,company:null,sound:null,note:'',sprints:[],running:null,proj:{}}}
 let S={settings:defaultSettings(),days:{}};
@@ -2760,10 +2820,22 @@ function rToday(){
     ${isToday?'':`<button class="link" data-act="day-today">${t('backToday')}</button>`}
   </div>`;
   return`<div class="today-grid">
-    <div>${rUnlogged(day)}<section class="timecard">${dn}${rTimer(day,isToday)}</section>${rSprints(day,st)}${rWords(day)}</div>
+    <div>${rUnlogged(day)}${isToday?rNudge(day):''}<section class="timecard">${dn}${rTimer(day,isToday)}</section>${rSprints(day,st)}${rWords(day)}${rClose(day)}</div>
     <div>${rConditions(day)}</div>
   </div>`;
 }
+function rNudge(day){
+  if(runningDay())return'';const ty=typeOf(day.date),wrote=day.sprints.some(x=>x.end);const rw=rhythmWeek(weekStart(day.date));
+  let msg='',btn=false;
+  if(ty==='anchor'){msg=wrote?t('anchorDone'):t('anchorToday');btn=!wrote}
+  else if(ty==='bonus'){if(wrote&&rw.movedTo.includes(day.date))msg=t('anchorMoved');else{msg=t('bonusToday');btn=!wrote}}
+  else if(ty==='rest')msg=t('restToday');else if(ty==='nowrite')msg=t('nowriteToday');
+  if(!msg)return'';
+  return`<section class="panel"><p style="margin:0;line-height:1.55">${esc(msg)}</p>${btn&&activeProjects().length?`<div class="row" style="margin-top:12px"><button class="btn small" data-act="begin-q">${t('beginQ')}</button></div>`:''}</section>`}
+function rClose(day){
+  if(!day.sprints.some(x=>x.end)&&!day.close)return'';const c=day.close||{};const has=!!(c.well||c.hard||c.leave);
+  const f=(k,l)=>`<div class="field"><label for="cl-${k}">${t(l)}</label><textarea id="cl-${k}" data-close="${k}" style="min-height:52px">${esc(c[k]||'')}</textarea></div>`;
+  return`<section class="panel"><details ${has?'open':''}><summary style="cursor:pointer;font-weight:700;color:var(--accent)">${t('closeDay')}</summary><p class="muted small">${t('closeIntro')}</p>${f('well','closeWell')}${f('hard','closeHard')}${f('leave','closeLeave')}</details></section>`}
 function rTimer(day,isToday){
   const projs=activeProjects();
   if(!projs.length)return`<section class="panel empty"><p>${t('noProjects')}</p><div class="row"><input type="text" id="newTitle" placeholder="${t('addTitlePh')}" aria-label="${t('addTitlePh')}"><button class="btn small" data-act="add-project">${t('add')}</button></div></section>`;
@@ -2858,7 +2930,7 @@ function rWords(day){
 }
 function rConditions(day){
   const sh=S.settings.show,Ls=S.settings.lists;const parts=[];
-  if(sh.block)parts.push(`<div class="field"><span class="flabel">${t('block')}</span>${chipsSingle('block',['b1','b2','b3','b4','b5','winter','free'],day.block)}</div>`);
+  if(sh.block){const bl=DAYTYPES.slice();if(day.block&&!bl.includes(day.block))bl.push(day.block);const dps=daypartsOf(day);parts.push(`<div class="field"><span class="flabel">${t('block')}</span>${chipsSingle('block',bl,day.block||typeOf(day.date))}</div>`);if(dps.length)parts.push(`<div class="field"><span class="flabel">${t('daypart')} <span class="muted">${dps.map(o).map(esc).join(' + ')}</span></span></div>`)}
   for(const k of['mood','energy','stress'])if(sh[k])parts.push(`<div class="field"><span class="flabel">${t(k)}</span>${scale(k,day[k])}</div>`);
   if(sh.life)parts.push(`<div class="field"><span class="flabel">${t('life')}</span>${chipsSingle('life',['soft','medium','heavy'],day.life)}</div>`);
   for(const k of['sensory','care'])if(sh[k])parts.push(`<div class="field"><span class="flabel">${t(k)}</span>${scale(k,day[k])}</div>`);
@@ -2932,7 +3004,7 @@ function rWeek(){
 
 /* ---------- insights ---------- */
 const FACTORS=[
-  ['block',d=>d.block?[d.block]:[]],['mood',d=>d.mood?[d.mood]:[]],['energy',d=>d.energy?[d.energy]:[]],['stress',d=>d.stress?[d.stress]:[]],
+  ['block',d=>[d.block||typeOf(d.date)]],['daypart',d=>daypartsOf(d)],['mood',d=>d.mood?[d.mood]:[]],['energy',d=>d.energy?[d.energy]:[]],['stress',d=>d.stress?[d.stress]:[]],
   ['life',d=>d.life?[d.life]:[]],['sensory',d=>d.sensory?[d.sensory]:[]],['care',d=>d.care?[d.care]:[]],
   ['cycle',d=>{const c=cycleFor(d.date);return c?[c.phase]:[]}],['body',d=>d.body||[]],['weather',d=>d.weather||[]],['season',d=>[season(d.date)]],
   ['place',d=>d.place?[d.place]:[]],['company',d=>d.company?[d.company]:[]],['sound',d=>d.sound?[d.sound]:[]],
@@ -3022,6 +3094,7 @@ function rSettings(){
   const listEd=k=>`<div class="field"><span class="flabel">${t(k==='phase'?'phase':k)}</span><div class="chips">${s.lists[k].map((v,i)=>`<button class="chip" data-act="rm-option" data-list="${k}" data-i="${i}" aria-label="remove ${esc(o(v))}">${esc(o(v))}<span class="x" aria-hidden="true">×</span></button>`).join('')}<button class="chip add" data-act="add-option" data-list="${k}">+ ${t('newOption')}</button></div></div>`;
   return`<section class="panel"><h3>${t('language')}</h3><div class="chips"><button class="chip ${L()==='en'?'on':''}" data-act="lang" data-v="en">English</button><button class="chip ${L()==='nl'?'on':''}" data-act="lang" data-v="nl">Nederlands</button></div>
     <div class="field" style="margin-top:16px"><span class="flabel">${t('defaultLength')}</span><div class="chips">${[5,10,15,20,25,30,45,60,0].map(m=>`<button class="chip ${s.defaultPreset===m?'on':''}" data-act="default-preset" data-m="${m}">${m?m+' min':t('openEnded')}</button>`).join('')}</div></div></section>
+  <section class="panel"><h3>${t('myWeek')}</h3><p class="muted small" style="margin-top:0">${t('rhythmIntro')}</p>${[1,2,3,4,5,6,0].map(d=>{const nm=new Date(2024,0,7+d).toLocaleDateString(loc(),{weekday:'long'});return`<div class="field"><span class="flabel">${esc(nm)}</span><div class="chips">${DAYTYPES.map(v=>`<button class="chip ${s.rhythm[d]===v?'on':''}" data-act="rhythm" data-d="${d}" data-v="${v}" aria-pressed="${s.rhythm[d]===v}">${esc(o(v))}</button>`).join('')}</div></div>`}).join('')}<div class="field"><span class="flabel">${t('dayparts')}</span><div class="row" style="flex-wrap:wrap;gap:8px">${s.dayparts.map((v,i)=>`<input type="time" data-dp="${i}" value="${esc(v)}" aria-label="${i}">`).join('')}</div></div></section>
   <section class="panel"><h3>${t('showFields')}</h3><div class="cols2">${SHOW_KEYS.map(k=>`<label class="toggle"><input type="checkbox" data-show="${k}" ${s.show[k]?'checked':''}>${t(k)}</label>`).join('')}</div></section>
   <section class="panel"><h3>${t('lists')}</h3>${['phase','place','company','sound','weather','body'].map(listEd).join('')}</section>
   <section class="panel"><h3>${t('cycleSettings')}</h3>
@@ -3119,7 +3192,7 @@ function finishSprint(end,auto){
   const day=runningDay();if(!day)return;const r=day.running;
   const pz=(r.pauseMs||0)+(r.paused?Math.max(0,end-r.paused):0);
   const s={id:uid(),pid:r.pid,start:r.start,end:Math.max(end,r.start+1000),planned:r.planned||null,words:null,pause:pz||undefined};
-  day.sprints.push(s);day.running=null;snapshotProj(day,r.pid);try{bridge.onFinish(r.pid,day,s)}catch(e){}try{if(day.block==='b5'&&day.sprints.filter(x=>x.end).length===1)bridge.cycle()}catch(e){}touch(day.date);unlockScreen();
+  day.sprints.push(s);day.running=null;snapshotProj(day,r.pid);try{bridge.onFinish(r.pid,day,s)}catch(e){}touch(day.date);unlockScreen();
   if(auto)chime();bridge.tick(null);
   if(view.tab==='today'&&view.date===day.date)render();
   openWords(day.date,s.id);
@@ -3130,11 +3203,11 @@ function finishSprint(end,auto){
 function csvCell(v){v=v==null?'':String(v);return/[",\n;]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
 function toCSV(rows){return rows.map(r=>r.map(csvCell).join(',')).join('\n')}
 function daysCSV(){
-  const head=['date','weekday','season','writing_cycle','mood','energy','stress','life_load','sensory_load','caregiving_load','cycle_day','cycle_phase','body','weather','place','company','sound','book','phase','feel_ending','sprints','writing_minutes','words_written','words_from_sprints','manuscript_start','manuscript_end','manuscript_change','moved','outside_draft','rewritten','day_start','day_end','breaks','break_minutes','note'];
+  const head=['date','weekday','season','kind_of_day','mood','energy','stress','life_load','sensory_load','caregiving_load','cycle_day','cycle_phase','body','weather','place','company','sound','book','phase','feel_ending','sprints','writing_minutes','words_written','words_from_sprints','manuscript_start','manuscript_end','manuscript_change','moved','outside_draft','rewritten','day_start','day_end','breaks','break_minutes','note','time_of_day','close_went_well','close_in_the_way','close_not_taking'];
   const rows=[head];
   for(const d of allDays()){const s=dayStats(d);const c=cycleFor(d.date);
-    const base=[d.date,parseISO(d.date).toLocaleDateString('en-GB',{weekday:'short'}),season(d.date).replace('wintersn','winter'),d.block,d.mood,d.energy,d.stress,d.life,d.sensory,d.care,c&&c.day,c&&c.phase,(d.body||[]).join('|'),(d.weather||[]).join('|'),d.place,d.company,d.sound];
-    const tail=[hm(s.dayStart),hm(s.dayEnd),s.breaks,Math.round(s.breakMin),d.note];
+    const base=[d.date,parseISO(d.date).toLocaleDateString('en-GB',{weekday:'short'}),season(d.date).replace('wintersn','winter'),d.block||typeOf(d.date),d.mood,d.energy,d.stress,d.life,d.sensory,d.care,c&&c.day,c&&c.phase,(d.body||[]).join('|'),(d.weather||[]).join('|'),d.place,d.company,d.sound];
+    const cl=d.close||{};const tail=[hm(s.dayStart),hm(s.dayEnd),s.breaks,Math.round(s.breakMin),d.note,daypartsOf(d).map(k=>O.en[k]).join('|'),cl.well,cl.hard,cl.leave];
     const pids=[...new Set([...Object.keys(d.proj),...d.sprints.map(x=>x.pid)])].filter(p=>proj(p));
     if(!pids.length){rows.push([...base,'','','','','','','','','','','','','','',...tail]);continue}
     for(const p of pids){const ps=dayStats(d,{pid:p,phase:'all'});const pd=d.proj[p]||{};const sw=ps.sp.reduce((a,x)=>a+(+x.words||0),0);
@@ -3168,6 +3241,8 @@ const ACT={
   'set-active':b=>{S.settings.activeProject=b.dataset.id;view.wordsPid=b.dataset.id;touch('settings');render()},
   preset:b=>{view.preset=+b.dataset.m;render()},
   start:startSprint,
+  'begin-q':()=>{view.preset=15;startSprint()},
+  rhythm:b=>{S.settings.rhythm[b.dataset.d]=b.dataset.v;touch('settings');render()},
   stop:()=>finishSprint(Date.now(),false),
   pause:()=>{ togglePause(); },
   'add-sprint':()=>openSprintEditor(view.date,null),
@@ -3220,6 +3295,7 @@ root.addEventListener('input',e=>{
   if(el.dataset.pw){const day=dayFor(view.date),pid=el.dataset.pid;snapshotProj(day,pid);day.proj[pid][el.dataset.pw]=el.value===''?null:Math.max(0,+el.value);touch(view.date);
     const pd=day.proj[pid],out=$('#net-out');if(out){const n=(pd.startTotal!=null&&pd.endTotal!=null)?pd.endTotal-pd.startTotal:null;out.textContent=n==null?'–':(n>0?'+':'')+num(n)}}
   else if(el.hasAttribute('data-note')){dayFor(view.date).note=el.value;touch(view.date)}
+  else if(el.dataset.close){const d=dayFor(view.date);d.close=d.close||{};d.close[el.dataset.close]=el.value;touch(view.date)}
   else if(el.dataset.bookf==='title'){const p=proj(el.dataset.id);p.title=el.value;touch('settings')}
   else if(el.dataset.bookf==='target'){const p=proj(el.dataset.id);p.target=el.value===''?null:Math.max(0,+el.value);touch('settings')}
   else if(el.hasAttribute('data-cyclelen')){const v=+el.value;if(v>=18&&v<=60){S.settings.cycle.length=v;touch('settings')}}
@@ -3232,6 +3308,7 @@ root.addEventListener('change',e=>{
   else if(el.dataset.bookf){render()}
   else if(el.dataset.bookfield){const p=proj(el.dataset.id);p.fields=p.fields||{};p.fields[el.dataset.bookfield]=el.checked;touch('settings')}
   else if(el.dataset.show){S.settings.show[el.dataset.show]=el.checked;touch('settings')}
+  else if(el.dataset.dp!=null){const a=S.settings.dayparts.slice();if(el.value){a[+el.dataset.dp]=el.value;S.settings.dayparts=a;touch('settings');render()}}
   else if(el.hasAttribute('data-cyclefirst')){if(el.value&&!S.settings.cycle.starts.includes(el.value)){S.settings.cycle.starts.push(el.value);touch('settings');render()}}
   else if(el.dataset.ins){view[el.dataset.ins]=el.value;render()}
 });
@@ -3243,9 +3320,9 @@ loadLocal();
 render();
 (function resume(){const d=runningDay();if(d&&!d.running.paused&&d.running.planned&&Date.now()-d.running.start-(d.running.pauseMs||0)>=d.running.planned*60000)finishSprint(d.running.start+d.running.planned*60000+(d.running.pauseMs||0),false)})();
 connect();
-function nextBlock(ds){ const prev=allDays().filter(d=>d.block&&/^b[1-5]$/.test(d.block)&&d.date<ds); const l=prev[prev.length-1]; const m=l&&/^b([1-4])$/.exec(l.block); return m?'b'+(+m[1]+1):'b1'; }
+function nextBlock(ds){ return typeOf(ds); }
 function fillGaps(wrote){
-  if(!S.settings.show.block) return 0;
+  return 0;
   const td=todayISO(), y=addDays(td,-1);
   const act=Object.values(S.days).filter(d=>d.date<td&&(d.block||(d.sprints&&d.sprints.length)||Object.keys(d.proj||{}).length)).map(d=>d.date).sort();
   const base=[act[act.length-1],S.settings.filledUntil].filter(Boolean).sort().pop();
@@ -3313,6 +3390,10 @@ return {
   felt(sbId,v){ const p=byStory(sbId); if(!p) return false;
     if(v!==undefined){ p.felt=!!v; touch('settings'); const ds=todayISO(), day=dayFor(ds); snapshotProj(day,p.id); day.proj[p.id].felt=p.felt; touch(ds); renderSoon(); }
     return !!p.felt; },
+  lang(){ return L(); },
+  rhythmWeek(ws){ return rhythmWeek(ws); },
+  keptWeeks(){ return keptWeeks(); },
+  typeOf(ds){ return typeOf(ds); },
   blocks(){ const ds=allDays().filter(d=>d.block); if(!ds.length) return null;
     const last=ds[ds.length-1]; let winter=0;
     if(last.block==='winter') for(let i=ds.length-1;i>=0&&ds[i].block==='winter';i--) winter++;
@@ -3457,21 +3538,22 @@ function weekData(ws){
   const days=[...Array(7)].map((_,i)=>addD(ws,i));
   const per=days.map(d=>S.projects.reduce((a,p)=>a+((p.stats.days||{})[d]||0),0));
   const words=per.reduce((a,b)=>a+b,0);
-  const lw=LOG?LOG.week(ws):{minutes:0,sprints:0,blocks:0,wrote:[]};
+  const lw=LOG?LOG.week(ws):{minutes:0,sprints:0,blocks:0,wrote:[]}; let rwk=null; try{ rwk=LOG&&LOG.rhythmWeek(ws); }catch(e){}
   const wroteDays=new Set(days.filter((d,i)=>per[i]>0)); (lw.wrote||[]).forEach(d=>wroteDays.add(d));
   const best=per.indexOf(Math.max(...per));
   const inWeek=iso=>iso && iso.slice(0,10)>=ws && iso.slice(0,10)<=days[6];
   const names=S.projects.reduce((a,p)=>a+(p.names||[]).filter(n=>inWeek(n.added)).length,0);
   const clips=S.projects.reduce((a,p)=>a+(p.knip||[]).filter(k=>inWeek(k.date)).reduce((x,k)=>x+k.words,0),0);
   const stories=S.projects.filter(p=>days.some(d=>((p.stats.days||{})[d]||0)>0)).map(p=>p.title);
-  return {ws,days,words,per,best,wroteDays:wroteDays.size,minutes:lw.minutes,sprints:lw.sprints,blocks:lw.blocks,winter:lw.winter||0,names,clips,stories};
+  return {ws,days,words,per,best,wroteDays:wroteDays.size,minutes:lw.minutes,sprints:lw.sprints,blocks:lw.blocks,winter:0,rw:rwk,names,clips,stories};
 }
 function letterHtml(w){
   const nice=ds=>new Date(ds+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long'});
   const bestDay=w.per[w.best]>0?new Date(w.days[w.best]+'T12:00:00').toLocaleDateString('en-GB',{weekday:'long'}):'';
   const lines=[];
   if(w.words) lines.push(`You wrote <b>${fmt(w.words)}</b> new words${w.stories.length?` for ${w.stories.map(esc).join(' and ')}`:''}.`);
-  if(w.wroteDays) lines.push(`You sat down with your story on <b>${w.wroteDays}</b> ${w.wroteDays===1?'day':'days'}${w.blocks?`, ${w.blocks} of them writing ${w.blocks===1?'block':'blocks'}`:''}.`);
+  if(w.wroteDays) lines.push(`You sat down with your story on <b>${w.wroteDays}</b> ${w.wroteDays===1?'day':'days'}.`);
+  if(w.rw&&w.rw.anchors){ if(w.rw.done) lines.push(w.rw.moved?'Your fixed writing day moved, and you still showed up for it. That counts.':'You kept your fixed writing day.'); if(w.rw.bonus) lines.push(`And ${w.rw.bonus} bonus ${w.rw.bonus===1?'day':'days'} on top.`); }
   if(w.minutes) lines.push(`Your sprints add up to <b>${w.minutes>=60?Math.floor(w.minutes/60)+' h '+String(w.minutes%60).padStart(2,'0'):w.minutes+' min'}</b>, over ${w.sprints} ${w.sprints===1?'sprint':'sprints'}.`);
   if(bestDay) lines.push(`${bestDay} was your fullest day, with ${fmt(w.per[w.best])} words.`);
   if(w.names) lines.push(`${w.names} new ${w.names===1?'name':'names'} found ${w.names===1?'its':'their'} way into your notebook.`);
@@ -3623,7 +3705,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-10-27d';
+const APP_VERSION='2026-10-29a';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
@@ -3645,3 +3727,4 @@ const APP_VERSION='2026-10-27d';
 </script>
 </body>
 </html>
+
