@@ -1,6 +1,6 @@
 {
-  "name": "Schrijfbureau",
-  "short_name": "Schrijfbureau",
+  "name": "TheWritersDesk",
+  "short_name": "TheWritersDesk",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

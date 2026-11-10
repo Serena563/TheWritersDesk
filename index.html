@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Schrijfbureau</title>
+<title>TheWritersDesk</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Schrijfbureau">
+<meta name="apple-mobile-web-app-title" content="TheWritersDesk">
 <meta name="theme-color" content="#1e1915">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,7 +23,7 @@
 <style>
 :root{
   --paper:#f2eadb; --paper-line:rgba(60,45,30,.12); --ink:#2a231b; --ink-soft:#7c6f5e;
-  --t-lade:#e0c36f; --t-later:#a9bf9c; --t-feel:#d3a8b8; --t-checks:#a9b9cf;
+  --t-lade:#e0c36f; --t-later:#a9bf9c; --t-feel:#d3a8b8; --t-checks:#a9b9cf; --t-today:#e3b38a;
   --m-g:rgba(110,160,105,.36); --m-y:rgba(226,186,60,.46); --m-r:rgba(205,100,85,.30);
   --n-character:#c49aa8; --n-place:#8fa7bf; --n-food:#d8b86a; --n-animal:#9db795; --n-other:#b0a697;
   --ui-font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
@@ -112,6 +112,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
 .stab[data-side="later"]{background:var(--t-later)}
 .stab[data-side="feel"]{background:var(--t-feel)}
 .stab[data-side="checks"]{background:var(--t-checks)}
+.stab[data-side="today"]{background:var(--t-today)}
 .nb{position:relative;z-index:2;flex:1;min-height:0;overflow-y:auto;background:var(--paper);color:var(--ink);border-radius:16px;padding:1.1rem 1.1rem 1.4rem;
   box-shadow:0 18px 44px rgba(0,0,0,.4),0 3px 10px rgba(0,0,0,.2);border-top:5px solid var(--accent,var(--t-names));scrollbar-width:thin}
 .nb h3{font:600 1.25rem/1.2 var(--serif);margin:0 0 .3rem}
@@ -167,6 +168,39 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
 .card textarea:focus{outline:none;background:rgba(42,35,27,.09)}
 .card .ren{width:100%;border:0;background:rgba(42,35,27,.05);border-radius:9px;padding:.4rem .6rem;font:600 1rem var(--serif);color:var(--ink)}
 .card select{border:0;border-radius:999px;background:rgba(42,35,27,.07);padding:.3rem .7rem;font-size:.78rem;color:var(--ink)}
+.plates{display:flex;gap:.4rem}
+.plate{flex:1;border:0;border-radius:12px;background:rgba(42,35,27,.06);padding:.55rem .3rem .5rem;font-size:.76rem;font-weight:600;color:var(--ink);display:flex;flex-direction:column;align-items:center;gap:.2rem;transition:background .2s}
+.plate .bowl{font-size:.8rem;letter-spacing:.12em;color:var(--ink-soft)}
+.plate:hover{background:rgba(42,35,27,.11)}
+.plate.on{background:var(--t-today);color:#1c1814}
+.plate.on .bowl{color:#1c1814}
+.full{background:color-mix(in srgb,#8fb685 26%,transparent);border-radius:12px;padding:.75rem .85rem;font:600 .98rem/1.35 var(--serif);margin:.2rem 0 .4rem}
+.full small{display:block;font:500 .76rem/1.45 var(--ui-font);color:var(--ink-soft);margin-top:.25rem}
+.thinkrun{display:flex;align-items:center;justify-content:space-between;gap:.5rem;background:color-mix(in srgb,var(--t-today) 30%,transparent);border-radius:12px;padding:.55rem .6rem .55rem .85rem;font-size:.82rem;font-weight:600}
+.item.think .meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:.3rem}
+.item.think .ibtn{min-width:22px;height:22px;font-size:.7rem}
+.wins{list-style:none;margin:.2rem 0 0;padding:0}
+.wins li{font:.88rem/1.45 var(--serif);padding:.4rem 0;border-top:1px solid var(--paper-line)}
+.wins li:first-child{border-top:0}
+.wins .t{font:600 .68rem var(--ui-font);color:var(--ink-soft);margin-right:.5rem;font-variant-numeric:tabular-nums}
+.card .sect{border-top:1px solid var(--paper-line);padding:.55rem 0 .7rem}
+.card .sect summary{cursor:pointer;list-style:none;font:600 1rem/1.3 var(--serif);display:flex;align-items:baseline;gap:.5rem}
+.card .sect summary::-webkit-details-marker{display:none}
+.card .sect summary::before{content:'›';display:inline-block;width:.7rem;color:var(--ink-soft);transition:transform .25s var(--ease)}
+.card .sect[open] summary::before{transform:rotate(90deg)}
+.card .sect .kn{margin-left:auto;font:500 .7rem var(--ui-font);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.card .sect .sub{font-size:.74rem;line-height:1.5;color:var(--ink-soft);margin:.35rem 0 .2rem}
+.card .sect label{font:600 .86rem/1.35 var(--serif)}
+.talk{display:flex;flex-direction:column;gap:.7rem;margin:.6rem 0 .3rem}
+.tx .tq,.tx .ta2{display:flex;flex-direction:column;gap:.15rem}
+.tx .who{font-size:.66rem;font-weight:600;color:var(--ink-soft);letter-spacing:.02em}
+.tx .tq textarea{background:rgba(42,35,27,.06);border-radius:12px 12px 12px 4px;min-height:2.3em}
+.tx .ta2{margin:.35rem 0 0 1.4rem}
+.tx .ta2 .who{text-align:right}
+.tx .ta2 textarea{background:color-mix(in srgb,var(--who) 30%,transparent);border-radius:12px 12px 4px 12px;min-height:2.3em}
+.tx .ta2 textarea:focus{background:color-mix(in srgb,var(--who) 42%,transparent)}
+.tx .tm{display:flex;align-items:center;justify-content:space-between;font-size:.64rem;color:var(--ink-soft);margin-top:.2rem}
+.tx .tm .ibtn{min-width:22px;height:22px;font-size:.7rem}
 .ment{border-top:1px solid var(--paper-line);padding:.5rem 0}
 .ment .src{font-size:.68rem;color:var(--ink-soft);margin-bottom:.15rem}
 .ment .ex{font:.85rem/1.5 var(--serif);cursor:pointer}
@@ -427,6 +461,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
         <button class="stab" data-side="names">Names<span class="badge" id="b-names"></span></button>
         <button class="stab" data-side="drawer">Drawer<span class="badge" id="b-drawer"></span></button>
         <button class="stab" data-side="knip" title="Look at how much you have figured out about the story, and how solid the draft is becoming.">Clippings<span class="badge" id="b-knip"></span></button>
+        <button class="stab" data-side="today" title="Your plate, your thinking time, and what you finished today">Today<span class="badge" id="b-today"></span></button>
       </nav>
       <div class="nb" id="side-body"></div>
       <div class="ribbons" id="ribbons"></div>
@@ -1141,6 +1176,11 @@ const TYPES={character:'Character',place:'Place',food:'Food',animal:'Animal',oth
 const FIELDS={character:[['appearance','Appearance'],['personality','Personality'],['background','Background'],['notes','Notes']],
   place:[['feel','What it is like'],['notes','Notes']], food:[['details','Details'],['notes','Notes']],
   animal:[['details','Details'],['notes','Notes']], other:[['details','Details'],['notes','Notes']]};
+/* getting to know a character: six questions, in your own words */
+const KNOW=[['k_good',n=>`What is ${n} good at?`],['k_weak',n=>`Where is ${n} weak?`],['k_cares',n=>`What does ${n} care about?`],
+  ['k_drives',n=>`What drives ${n}?`],['k_moods',n=>`What are ${n}'s moods?`],['k_been',n=>`What has ${n} been through?`]];
+const knownOf=nm=>KNOW.filter(([k])=>(nm.fields[k]||'').trim()).length;
+const cardOpen={};   /* which card sections are folded open, per card */
 const STOP=new Set(('I Im Ill Ive Id Mr Mrs Ms Miss Dr Sir Lady Lord OK Okay Oh God Monday Tuesday Wednesday Thursday Friday Saturday Sunday '+
   'January February March April May June July August September October November December English Dutch Chapter Prologue Epilogue Part TV').split(' '));
 let candidates=[];
@@ -1263,6 +1303,20 @@ function cardBody(nm){
   const b=document.createElement('div'); b.className='cb';
   const ms=mentions(nm);
   let h=`<div class="when">First appeared ${niceDate(nm.first)}. ${ms.length?`In ${ms.length} paragraph${ms.length>1?'s':''}.`:'Not in the text right now.'}</div>`;
+  if(nm.type==='character'){
+    const op=cardOpen[nm.id]||(cardOpen[nm.id]={know:true,talk:false});
+    h+=`<details class="sect" data-sect="know" ${op.know?'open':''}><summary>Getting to know ${esc(nm.name)} <span class="kn" data-known>${knownOf(nm)} of 6</span></summary>
+      <p class="sub">Write down what you know, once, so you don't have to carry it in your head. Empty is fine. Come back whenever you know more.</p>`;
+    KNOW.forEach(([key,q])=>{ h+=`<label for="f-${nm.id}-${key}">${esc(q(nm.name))}</label><textarea id="f-${nm.id}-${key}" data-f="${key}" rows="2">${esc(nm.fields[key]||'')}</textarea>`; });
+    h+=`</details>`;
+    const talk=nm.talk||[];
+    h+=`<details class="sect" data-sect="talk" ${op.talk?'open':''}><summary>Talk with ${esc(nm.name)} <span class="kn">${talk.length?talk.length+(talk.length>1?' questions':' question'):''}</span></summary>
+      <p class="sub">You ask, ${esc(nm.name)} answers. Don't think it through first; let the answer come. Nothing here touches your manuscript.</p>
+      <div class="talk">${talk.map(x=>`<div class="tx" data-tx="${x.id}"><div class="tq"><span class="who">You</span><textarea data-tq="${x.id}" rows="1" placeholder="Your question">${esc(x.q||'')}</textarea></div>
+        <div class="ta2" style="--who:var(--n-${nm.type})"><span class="who">${esc(nm.name)}</span><textarea data-tans="${x.id}" rows="1" placeholder="${esc(nm.name)} answers…">${esc(x.a||'')}</textarea></div>
+        <div class="tm">${niceDate(x.at)}<button class="ibtn" data-tdel="${x.id}" aria-label="Remove this question">×</button></div></div>`).join('')}</div>
+      <button class="mini" data-tnew>Ask ${esc(nm.name)} something</button></details>`;
+  }
   (FIELDS[nm.type]||FIELDS.other).forEach(([key,label])=>{
     h+=`<label for="f-${nm.id}-${key}">${label}</label><textarea id="f-${nm.id}-${key}" data-f="${key}" rows="2">${esc(nm.fields[key]||'')}</textarea>`;
   });
@@ -1286,8 +1340,18 @@ function cardBody(nm){
   b.innerHTML=h;
   b.querySelectorAll('textarea').forEach(t=>{
     const fit=()=>{ t.style.height='auto'; t.style.height=Math.min(t.scrollHeight+2,320)+'px'; }; requestAnimationFrame(fit);
-    t.addEventListener('input',()=>{ nm.fields[t.dataset.f]=t.value; fit(); scheduleSave(); });
+    t.addEventListener('input',fit);
+    if(t.dataset.f) t.addEventListener('input',()=>{ const before=knownOf(nm); nm.fields[t.dataset.f]=t.value; scheduleSave();
+      const now=knownOf(nm), kn=b.querySelector('[data-known]'); if(kn) kn.textContent=now+' of 6';
+      if(nm.type==='character' && now===6 && before===5 && !nm.knownAll){ nm.knownAll=true; cheer(`You have answered all six questions for ${nm.name}.`,'Everything you know is kept here now.',false); } });
   });
+  b.querySelectorAll('details.sect').forEach(d=>d.addEventListener('toggle',()=>{ (cardOpen[nm.id]||(cardOpen[nm.id]={}))[d.dataset.sect]=d.open; }));
+  const talkOf=id=>(nm.talk||[]).find(x=>x.id===id);
+  b.querySelectorAll('[data-tq]').forEach(t=>t.addEventListener('input',()=>{ const x=talkOf(t.dataset.tq); if(x){ x.q=t.value; scheduleSave(); } }));
+  b.querySelectorAll('[data-tans]').forEach(t=>t.addEventListener('input',()=>{ const x=talkOf(t.dataset.tans); if(x){ x.a=t.value; scheduleSave(); } }));
+  b.querySelectorAll('[data-tdel]').forEach(x=>x.onclick=async()=>{ const it=talkOf(x.dataset.tdel); if(it && (it.q||it.a) && !await ask('Remove this question and its answer?','Remove')) return; nm.talk=(nm.talk||[]).filter(y=>y.id!==x.dataset.tdel); scheduleSave(); renderSide(); });
+  const tn=b.querySelector('[data-tnew]'); if(tn) tn.onclick=()=>{ nm.talk=nm.talk||[]; const it={id:uid(),at:new Date().toISOString(),q:'',a:''}; nm.talk.push(it); (cardOpen[nm.id]||(cardOpen[nm.id]={})).talk=true; scheduleSave(); renderSide();
+    setTimeout(()=>{ const q=document.querySelector(`[data-tq="${it.id}"]`); if(q){ q.focus(); q.scrollIntoView({block:'center',behavior:'smooth'}); } },40); };
   b.querySelectorAll('[data-jump]').forEach(x=>x.onclick=()=>{ const m=ms[+x.dataset.jump]; jumpToPara(m.k,m.i); });
   b.querySelectorAll('[data-take]').forEach(x=>x.onclick=()=>{
     const m=ms[+x.dataset.take]; const s=sentenceWith(m.para.textContent,nm);
@@ -1550,7 +1614,7 @@ document.addEventListener('keydown',e=>{
 
 /* ---------------- small notebook & sheets ---------------- */
 let folioView=null, sideView='names';
-const accents={drawer:'var(--t-lade)',knip:'var(--t-knip)',names:'var(--t-names)',later:'var(--t-later)',feel:'var(--t-feel)',checks:'var(--t-checks)'};
+const accents={drawer:'var(--t-lade)',knip:'var(--t-knip)',names:'var(--t-names)',later:'var(--t-later)',feel:'var(--t-feel)',checks:'var(--t-checks)',today:'var(--t-today)'};
 function openFolio(v){ if(v==='projects') safetyList().then(l=>{ safetyCache=l; if(folioView==='projects') renderFolio(); }); folioView=v; $('#folio').scrollTop=0; renderFolio(); $('#folio').classList.add('open'); $('#folio').setAttribute('aria-hidden','false'); $('#scrim').classList.add('open'); }
 function closeFolio(){ folioView=null; $('#folio').classList.remove('open'); $('#folio').setAttribute('aria-hidden','true'); $('#scrim').classList.remove('open'); }
 $('#scrim').onclick=closeFolio; $('#folio-close').onclick=closeFolio;
@@ -1566,6 +1630,7 @@ function renderSide(){
   body.style.setProperty('--accent',accents[sideView]);
   document.querySelectorAll('.stab').forEach(t=>t.classList.toggle('active',t.dataset.side===sideView));
   if(sideView==='names' && !dock.list && dock.open.length) renderCards(); else renderView(sideView,body);
+  try{ todayBadge(); }catch(e){}
 }
 function refreshPanels(){ renderFolio(); if(!editingCard() && !editingSide()) renderSide(); }
 const PALETTES=[['candle','Candlelight','#1e1915','#c79a73'],['mist','Mist','#1a1f24','#9fb3c8'],['sage','Sage','#1b201c','#a7bb9c'],['dusk','Dusk','#201b22','#bba2c8'],['rose','Rose','#221b1b','#d4a5a0'],['night','Night','#000000','#b8b8c8']];
@@ -1659,9 +1724,9 @@ function renderView(folioView, body){
     h+=dropboxSection();
     h+=safetySection();
     h+=`<div class="group">Backup</div><div class="row"><button class="fbtn" id="backup">Make a backup</button><button class="fbtn" id="restore">Restore a backup</button></div>`;
-    h+=`<p class="more" style="margin-top:1.4rem;text-align:center">Schrijfbureau · version ${APP_VERSION}</p>`;
+    h+=`<p class="more" style="margin-top:1.4rem;text-align:center">TheWritersDesk · version ${APP_VERSION}</p>`;
   }
-  if(['later','feel','checks'].includes(folioView)){ if(folioView==='later') pruneLater(); h+=extraView(folioView,p); }
+  if(['later','feel','checks','today'].includes(folioView)){ if(folioView==='later') pruneLater(); h+=extraView(folioView,p); }
   body.innerHTML=h;
   body.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>jumpTo(+b.dataset.jump));
   body.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{ const k=P().knip.find(x=>x.id===b.dataset.copy); try{ await navigator.clipboard.writeText(k.text); toast('Copied'); }catch(e){ toast('Copying does not work in this browser'); } });
@@ -2007,7 +2072,11 @@ function mergeStates(L,R){
   const projects=out.filter(p=>!(gone[p.id] && gone[p.id]>=(p.u||0)));
   const newer=(L.savedAt||0)>=(R.savedAt||0)?L:R;
   const S2=Object.assign({},newer,{projects,gone});
-  S2.sideOpen=L.sideOpen; S2.typewriter=L.typewriter; S2.activeId=projects.some(p=>p.id===L.activeId)?L.activeId:(projects[0]&&projects[0].id);
+  S2.sideOpen=L.sideOpen; S2.typewriter=L.typewriter; S2.thinkRun=L.thinkRun;
+  const byDay=(a,b)=>{ const out=Object.assign({},b||{}); for(const [d,l] of Object.entries(a||{})) out[d]=unionBy(l,out[d],'a'); return out; };
+  const older=newer===L?R:L;
+  S2.think=byDay(newer.think,older.think); S2.wins=byDay(newer.wins,older.wins);
+  const pl=[L.plate,R.plate].filter(Boolean).sort((x,y)=>(y.u||0)-(x.u||0))[0]; if(pl) S2.plate=pl; S2.activeId=projects.some(p=>p.id===L.activeId)?L.activeId:(projects[0]&&projects[0].id);
   if(!projects.length){ const p=newProject('New story'); S2.projects=[p]; S2.activeId=p.id; }
   return {state:S2, local:flag.local, copies:flag.copies||0};
 }
@@ -2126,6 +2195,7 @@ function recordMinute(p,d){
 const bridge={
   dayWords(pid,ds){ const p=storyOfLog(pid); return (p&&p.stats&&p.stats.days&&p.stats.days[ds])||0; },
   minutes(pid,ds){ const p=storyOfLog(pid); return (p&&p.stats&&p.stats.mins&&p.stats.mins[ds])||null; },
+  thinkMin(ds){ try{ return thinkMin(ds); }catch(e){ return 0; } },
   changed(){ dbxSoon('l'); },
   cycle(){ cycleDone(); },
   ask:(m,y)=>ask(m,y),
@@ -2151,6 +2221,7 @@ const bridge={
     const kt=knipToday(p); if(kt) pd.moved=kt;
     if(snap){ const md=p.stats.mid-snap.mid; if(md>0) pd.rewritten=(pd.rewritten||0)+md; }
     S.sprint=null; scheduleSave(); openLog();
+    try{ addWin(`A sprint for ${p.title}, ${fmtM(Math.max(0,s.end-s.start-(s.pause||0))/60000)}`); }catch(e){}
   }
 };
 function openLog(){ if(LOG) LOG.refresh(); const s=$('#logsheet'); s.inert=false; s.classList.add('open'); s.setAttribute('aria-hidden','false'); }
@@ -2493,6 +2564,7 @@ function extraView(view,p){
       <textarea class="ta" id="ck-openers" rows="4" aria-label="Opening words, separated by commas">${esc(c.openers.join(', '))}</textarea>
       ${HL?'':'<p class="more">This browser cannot show the soft colour. It works in a recent Safari or Chrome.</p>'}`;
   }
+  if(view==='today') h+=todayView();
   return h;
 }
 function fitTa(t){ t.style.height='auto'; t.style.height=Math.min(t.scrollHeight+2,360)+'px'; }
@@ -2530,6 +2602,7 @@ function bindExtra(body,view){
     body.querySelectorAll('[data-snapx]').forEach(b=>b.onclick=()=>{ const [date,id]=b.dataset.snapx.split('|'); const p=P(); snapBox(p.id,date).then(box=>{ const e=box&&box[id]; if(e) exportDocx(id,{html:e.html,name:e.name,date}); else toast('This copy could not be found on this device'); }); });
     const sa=body.querySelector('#snap-all'); if(sa) sa.onclick=()=>{ snapShowAll=true; renderFolio(); };
   }
+  if(view==='today') bindToday(body);
   if(view==='progress'){ bindGoal(body); const ol=body.querySelector('#open-log2'); if(ol) ol.onclick=()=>{ closeFolio(); openLog(); }; }
 }
 const NLx=()=>LOG&&LOG.lang&&LOG.lang()==='nl';
@@ -2728,7 +2801,7 @@ function daypartsOf(day){const b=dpMins(),t0=parseISO(day.date).getTime(),out=ne
     for(let i=0;i<4;i++){if(a<b[i+1]&&z>b[i])out.add('dp'+(i+1))}
     if(a<b[0]||z>b[4])out.add('dp0')}
   return ['dp1','dp2','dp3','dp4','dp0'].filter(k=>out.has(k))}
-function wroteLog(ds){const d=S.days[ds];if(d&&d.sprints.some(x=>x.end))return true;try{return (bridge.dayWords&&Object.values(S.settings.projects).some(p=>p.sbId&&bridge.dayWords(p.id,ds)>0))}catch(e){return false}}
+function wroteLog(ds){const d=S.days[ds];if(d&&d.sprints.some(x=>x.end))return true;try{if(bridge.thinkMin&&bridge.thinkMin(ds)>=15)return true;return (bridge.dayWords&&Object.values(S.settings.projects).some(p=>p.sbId&&bridge.dayWords(p.id,ds)>0))}catch(e){return false}}
 function rhythmWeek(ws){
   const td=todayISO(),dates=[...Array(7)].map((_,i)=>addDays(ws,i));
   const info=dates.map(ds=>({ds,type:typeOf(ds),wrote:ds<=td&&wroteLog(ds),past:ds<td,today:ds===td}));
@@ -2973,7 +3046,7 @@ function rSprints(day,st){
   const dsv=day.start!=null?hm(day.start):'',dev=day.end!=null?hm(day.end):'';
   return`<section class="panel"><h3>${t('sprints')}</h3>
     ${list.length?`<ul class="sprints">${rows}</ul>`:`<p class="muted small" style="margin:0">${t('noSprints')}</p>`}
-    <div class="summary"><span>${t('writingTime')} <b>${fmtMin(st.minutes)}</b></span><span>${t('sprints')} <b>${st.sprints}</b></span><span>${t('breaks')} <b>${st.breaks}</b>${st.breaks?` (${fmtMin(st.breakMin)})`:''}</span>${st.span?`<span>${t('span')} <b>${fmtMin(st.span)}</b></span>`:''}</div>
+    <div class="summary"><span>${t('writingTime')} <b>${fmtMin(st.minutes)}</b></span>${(()=>{let m=0;try{m=bridge.thinkMin?bridge.thinkMin(day.date):0}catch(e){}return m?`<span>${L()==='nl'?'Denktijd':'Thinking time'} <b>${fmtMin(m)}</b></span>`:''})()}<span>${t('sprints')} <b>${st.sprints}</b></span><span>${t('breaks')} <b>${st.breaks}</b>${st.breaks?` (${fmtMin(st.breakMin)})`:''}</span>${st.span?`<span>${t('span')} <b>${fmtMin(st.span)}</b></span>`:''}</div>
     <div class="times">
       <label>${t('dayStart')}<span class="row"><input type="time" data-dayt="start" value="${dsv}"><button class="btn ghost small" data-act="day-now" data-v="start">${t('now')}</button></span></label>
       <label>${t('dayEnd')}<span class="row"><input type="time" data-dayt="end" value="${dev}"><button class="btn ghost small" data-act="day-now" data-v="end">${t('now')}</button></span></label>
@@ -3490,6 +3563,7 @@ const CHEER={
 };
 let cheerT=null, confRun=0;
 function cheer(msg,sub,big){
+  try{ addWin(msg); }catch(e){}
   const el=$('#cheer'); el.innerHTML=esc(msg)+(sub?`<small>${esc(sub)}</small>`:'');
   el.classList.add('show'); clearTimeout(cheerT); cheerT=setTimeout(()=>el.classList.remove('show'), big?5200:4000);
   if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -3533,17 +3607,18 @@ $('#read-scroll').addEventListener('scroll',()=>{ if(P()&&P().mode==='read') bum
 
 function checkGoals(){
   if(!S) return; const p=P(); let changed=false;
-  const g=goalOf(), n=todayAll();
+  const g=dayGoal(), n=todayAll();
   if(g>0 && n>=g && S.goalHit!==today()){
     S.goalHit=today(); changed=true;
-    if(!S.goalEver){ S.goalEver=true; cheer(pick(CHEER.first)(n),'Goal for today: '+fmt(g),true); }
+    if(plateChosen() && !rwMode()) plateDone();
+    else if(!S.goalEver){ S.goalEver=true; cheer(pick(CHEER.first)(n),'Goal for today: '+fmt(g),true); }
     else cheer(pick(CHEER.goal)(n),'Goal for today: '+fmt(g),true);
   }
   const gr=GR();
   if(rwMode() && gr.n>0 && S.goalHitRw!==today()){
-    const have=gr.type==='minutes'?activeMin():n;
-    if(have>=gr.n){ S.goalHitRw=today(); changed=true;
-      cheer(gr.type==='minutes'?pick(CHEER.rwMin)(have):pick(CHEER.goal)(have), 'Rewriting goal for today: '+fmt(gr.n)+(gr.type==='minutes'?' minutes':' words'), true); }
+    const have=gr.type==='minutes'?activeMin()+thinkMin():n;
+    if(have>=dayGoalRw()){ S.goalHitRw=today(); changed=true;
+      if(plateChosen()) plateDone(); else cheer(gr.type==='minutes'?pick(CHEER.rwMin)(have):pick(CHEER.goal)(have), 'Rewriting goal for today: '+fmt(gr.n)+(gr.type==='minutes'?' minutes':' words'), true); }
   }
   if(p){
     S.miles=S.miles||{}; const reached=MILES.filter(m=>p.stats.total>=m).pop()||0;
@@ -3575,14 +3650,90 @@ function initMiles(){
 }
 function cycleDone(){ setTimeout(()=>cheer('Block 5 is done. Your cycle is complete.','Time to winter. You have earned it.',true),3200); }
 
+/* ================= TODAY: your plate, thinking time, what you finished ================= */
+/* Your goals are set for a full plate. On a smaller plate, today's goal gets smaller with it. */
+const plateChosen=()=>!!(S&&S.plate&&S.plate.date===today());
+const plateN=()=>plateChosen()?S.plate.n:3;
+const plateFull=()=>plateChosen()&&!!S.plate.full;
+const roundTo=(v,st)=>Math.max(st,Math.round(v/st)*st);
+const dayGoal=()=>{ const g=goalOf(); return g>0?roundTo(g*plateN()/3,10):0; };
+const dayGoalRw=()=>{ const gr=GR(); if(!(gr.n>0)) return 0; return roundTo(gr.n*plateN()/3, gr.type==='minutes'?5:10); };
+const thinkList=ds=>(S&&S.think&&S.think[ds||today()])||[];
+const thinkMin=ds=>Math.round(thinkList(ds).reduce((a,x)=>a+(x.mins||0),0));
+const winsToday=()=>(S&&S.wins&&S.wins[today()])||[];
+const fmtM=m=>{ m=Math.round(m||0); return m<60?m+' min':Math.floor(m/60)+' h'+(m%60?' '+(m%60)+' min':''); };
+const hhmm=ts=>new Date(ts).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+let thinkFocus=null;
+function addWin(text){
+  if(!S) return; S.wins=S.wins||{};
+  (S.wins[today()]||(S.wins[today()]=[])).push({id:uid(),at:Date.now(),text});
+  const ks=Object.keys(S.wins).sort(); if(ks.length>30) ks.slice(0,ks.length-30).forEach(k=>delete S.wins[k]);
+  scheduleSave(); if(sideView==='today' && !editingSide()) renderSide();
+}
+function plateDone(){
+  if(!plateChosen()) S.plate={date:today(),n:3,u:Date.now()};
+  if(S.plate.full) return; S.plate.full=true; S.plate.u=Date.now(); scheduleSave();
+  cheer(`Your plate is full. That is today's finish line.`,'You showed up and did the thing. Everything from here is extra.',true);
+}
+function setPlate(n){
+  const was=plateChosen()?S.plate:null;
+  S.plate={date:today(),n,full:!!(was&&was.full&&n<=was.n),u:Date.now()};
+  if(S.goalHit===today() && todayAll()<dayGoal()) S.goalHit=null;
+  if(S.goalHitRw===today()) S.goalHitRw=null;
+  scheduleSave(); renderSide(); checkGoals();
+}
+function addThink(start,end,note){
+  const mins=Math.round((end-start)/60000); if(mins<1) return null;
+  S.think=S.think||{}; const ds=new Date(start).toISOString().slice(0,10);
+  const it={id:uid(),start,end,mins,note:note||''}; (S.think[ds]||(S.think[ds]=[])).push(it);
+  thinkFocus=it.id; addWin(`Thinking time, ${fmtM(mins)}`); checkGoals(); return it;
+}
+function thinkRunText(){ const r=S.thinkRun; if(!r) return ''; return `Thinking since ${hhmm(r.start)} · ${fmtM((Date.now()-r.start)/60000)}`; }
+function todayView(){
+  const n=plateN(), chosen=plateChosen(), rw=rwMode(), gr=GR(), byMin=rw&&gr.type==='minutes';
+  const g=rw?dayGoalRw():dayGoal(), have=byMin?activeMin()+thinkMin():todayAll(), base=rw?gr.n:goalOf(), unit=byMin?'minutes':'words';
+  let h=`<h3>Today</h3><p class="intro">Your plate, your thinking time, and everything you finish today.</p>`;
+  if(plateFull()) h+=`<div class="full">Your plate is full. That is today's finish line.<small>You showed up and did the thing. Everything from here is extra.</small></div>`;
+  h+=`<div class="group">Your plate today</div><div class="plates" role="group" aria-label="How full is your plate today">${[1,2,3].map(k=>`<button class="plate ${chosen&&n===k?'on':''}" data-plate="${k}" aria-pressed="${chosen&&n===k}"><span class="bowl" aria-hidden="true">${'●'.repeat(k)}${'○'.repeat(3-k)}</span>${['Small','Medium','Full'][k-1]}</button>`).join('')}</div>`;
+  h+=`<p class="more">${chosen?`${['A small','A medium','A full'][n-1]} plate today. Fill it all the way, and that is your finish line.`:`How full is your plate today? Pick what you have, not what you wish you had.`}</p>`;
+  if(g>0){ const pc=Math.min(100,Math.round(have/g*100)), met=have>=g;
+    h+=`<div class="bar3" aria-hidden="true"><span style="width:${pc}%;background:${met?'#8fb685':'var(--t-today)'}"></span></div>
+      <p class="more" style="margin-top:0">${fmt(have)} of ${fmt(g)} ${unit}${rw?' while rewriting':''}${n<3?` (on a full plate: ${fmt(base)})`:''}.${byMin&&thinkMin()?` Your thinking time counts too.`:''}</p>`; }
+  if(!plateFull()) h+=`<div class="row" style="margin-top:.5rem"><button class="fbtn" id="plate-full">My plate is full</button></div>`;
+  h+=`<div class="group">Thinking time</div><p class="intro" style="margin-bottom:.5rem">Thinking is writing work too. It counts toward your day, even when no words land on the page.</p>`;
+  h+=S.thinkRun?`<div class="thinkrun"><span id="think-run-t">${thinkRunText()}</span><button class="fbtn strong" id="think-stop">Done thinking</button></div>`
+    :`<div class="row"><button class="fbtn strong" id="think-start">Start thinking</button></div>`;
+  h+=`<p class="more" style="margin:.6rem 0 .3rem">Or add time you already spent thinking:</p><div class="row">${[10,15,20,30,45,60].map(m=>`<button class="fbtn" data-thinkadd="${m}">${m} min</button>`).join('')}</div>`;
+  const tl=thinkList();
+  tl.slice().reverse().forEach(x=>{ h+=`<div class="item think"><div class="meta">${hhmm(x.start)}, ${fmtM(x.mins)}<button class="ibtn" data-thinkdel="${x.id}" aria-label="Remove this thinking time">×</button></div><textarea class="ta" rows="1" data-thinknote="${x.id}" placeholder="What did you think about?">${esc(x.note||'')}</textarea></div>`; });
+  if(tl.length) h+=`<p class="more">Thinking today: ${fmtM(thinkMin())}.</p>`;
+  const ws=winsToday();
+  h+=`<div class="group">Finished today</div>`;
+  if(!ws.length) h+=`<p class="empty">Everything you finish today gathers here: sprints, thinking time, goals, your plate. So you can see it, and it stays.</p>`;
+  else h+=`<ul class="wins">${ws.slice().reverse().map(w=>`<li><span class="t">${hhmm(w.at)}</span>${esc(w.text)}</li>`).join('')}</ul>`;
+  return h;
+}
+function bindToday(body){
+  body.querySelectorAll('[data-plate]').forEach(b=>b.onclick=()=>setPlate(+b.dataset.plate));
+  const pf=body.querySelector('#plate-full'); if(pf) pf.onclick=()=>{ plateDone(); renderSide(); };
+  const ts=body.querySelector('#think-start'); if(ts) ts.onclick=()=>{ S.thinkRun={start:Date.now()}; scheduleSave(); renderSide(); toast('Thinking time started. Take your time'); };
+  const tp=body.querySelector('#think-stop'); if(tp) tp.onclick=()=>{ const r=S.thinkRun; S.thinkRun=null; const it=r&&addThink(r.start,Date.now()); scheduleSave(); renderSide(); toast(it?`${fmtM(it.mins)} of thinking, kept`:'Under a minute, so nothing was added'); };
+  body.querySelectorAll('[data-thinkadd]').forEach(b=>b.onclick=()=>{ const m=+b.dataset.thinkadd, now=Date.now(); addThink(now-m*60000,now); renderSide(); toast(`${m} minutes of thinking, kept`); });
+  body.querySelectorAll('[data-thinknote]').forEach(t=>t.addEventListener('input',()=>{ const x=thinkList().find(y=>y.id===t.dataset.thinknote); if(x){ x.note=t.value; scheduleSave(); } }));
+  body.querySelectorAll('[data-thinkdel]').forEach(b=>b.onclick=async()=>{ if(!await ask('Remove this thinking time?','Remove')) return; S.think[today()]=thinkList().filter(y=>y.id!==b.dataset.thinkdel); scheduleSave(); renderSide(); });
+  if(thinkFocus){ const t=body.querySelector(`[data-thinknote="${thinkFocus}"]`); thinkFocus=null; if(t) setTimeout(()=>t.focus(),60); }
+}
+function todayBadge(){ const b=$('#b-today'); if(!b||!S) return; b.textContent=S.thinkRun?'thinking':(plateFull()?'✓':''); }
+setInterval(()=>{ if(!S) return; todayBadge(); if(sideView==='today' && S.thinkRun){ const el=$('#think-run-t'); if(el) el.textContent=thinkRunText(); } },20000);
+
 function goalStat(){
   const rw=rwMode(), gr=GR();
-  const g=rw?gr.n:goalOf(), byMin=rw&&gr.type==='minutes';
-  const n=byMin?activeMin():todayAll(), unit=byMin?'minutes':'words';
+  const g=rw?dayGoalRw():dayGoal(), byMin=rw&&gr.type==='minutes';
+  const n=byMin?activeMin()+thinkMin():todayAll(), unit=byMin?'minutes':'words';
   const pc=g?Math.min(100,Math.round(n/g*100)):0, met=g&&n>=g;
   return `<div class="stat"><div class="k">${rw?'Today, rewriting':'Today, across your stories'}</div><span class="big">${fmt(n)}${byMin?' min':''}</span>
     ${g?`<div class="bar3" aria-hidden="true"><span style="width:${pc}%;background:${met?'#8fb685':'var(--t-names)'}"></span></div>
-    <div class="s">${met?`Your goal of ${fmt(g)} ${unit} is reached. Everything from here is extra.`:`${pc}% of your goal of ${fmt(g)} ${unit}.`}</div>`:''}</div>`;
+    <div class="s">${met?`Your goal of ${fmt(g)} ${unit} is reached. Everything from here is extra.`:`${pc}% of your goal of ${fmt(g)} ${unit}.`}${plateN()<3?` Today's plate is ${plateN()===1?'small':'medium'}, so the goal is too.`:''}</div>`:''}</div>`;
 }
 function lengthStat(p){
   const tgt=LOG&&LOG.target(p.id); if(!tgt) return '';
@@ -3598,7 +3749,7 @@ function goalSettings(p){
     <div class="grow"><label for="goal-rw">While rewriting</label><input id="goal-rw" class="goal-in" type="number" inputmode="numeric" min="0" step="5" value="${gr.n}">
       <select id="goal-rwt" class="goal-in" style="width:auto"><option value="minutes" ${gr.type==='minutes'?'selected':''}>minutes a day</option><option value="words" ${gr.type==='words'?'selected':''}>words a day</option></select></div>
     ${LOG?`<div class="grow"><label for="goal-len">Length of ${esc(p.title)}</label><input id="goal-len" class="goal-in" type="number" inputmode="numeric" min="0" step="1000" value="${tgt}" placeholder="—"><span>words</span></div>`:''}
-    <div class="s">Use 0 for no goal. Minutes count the time you are actively reading, marking and writing.</div></div>`;
+    <div class="s">These are your goals for a full plate. On a smaller plate (Today, in your small notebook) the goal for that day gets smaller with it. Use 0 for no goal. Minutes count the time you are actively reading, marking and writing, plus your thinking time.</div></div>`;
 }
 function bindGoal(body){
   const gi=body.querySelector('#goal-in'); if(gi) gi.onchange=()=>{ const v=Math.max(0,Math.round(+gi.value||0)); S.goal=v; if(v && todayAll()<v && S.goalHit===today()) S.goalHit=null; scheduleSave(); renderFolio(); checkGoals(); };
@@ -3782,7 +3933,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-10-29c';
+const APP_VERSION='2026-11-10a';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
