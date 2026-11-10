@@ -1178,7 +1178,7 @@ const FIELDS={character:[['appearance','Appearance'],['personality','Personality
   animal:[['details','Details'],['notes','Notes']], other:[['details','Details'],['notes','Notes']]};
 /* getting to know a character: six questions, in your own words */
 const KNOW=[['k_good',n=>`What is ${n} good at?`],['k_weak',n=>`Where is ${n} weak?`],['k_cares',n=>`What does ${n} care about?`],
-  ['k_drives',n=>`What drives ${n}?`],['k_moods',n=>`What are ${n}'s moods?`],['k_been',n=>`What has ${n} been through?`]];
+  ['k_drives',n=>`What drives ${n}?`],['k_moods',n=>`What are ${n}'s moods?`],['k_been',n=>`What has ${n} been through?`],['k_become',n=>`Who will ${n} become?`]];
 const knownOf=nm=>KNOW.filter(([k])=>(nm.fields[k]||'').trim()).length;
 const cardOpen={};   /* which card sections are folded open, per card */
 const STOP=new Set(('I Im Ill Ive Id Mr Mrs Ms Miss Dr Sir Lady Lord OK Okay Oh God Monday Tuesday Wednesday Thursday Friday Saturday Sunday '+
@@ -1305,7 +1305,7 @@ function cardBody(nm){
   let h=`<div class="when">First appeared ${niceDate(nm.first)}. ${ms.length?`In ${ms.length} paragraph${ms.length>1?'s':''}.`:'Not in the text right now.'}</div>`;
   if(nm.type==='character'){
     const op=cardOpen[nm.id]||(cardOpen[nm.id]={know:true,talk:false});
-    h+=`<details class="sect" data-sect="know" ${op.know?'open':''}><summary>Getting to know ${esc(nm.name)} <span class="kn" data-known>${knownOf(nm)} of 6</span></summary>
+    h+=`<details class="sect" data-sect="know" ${op.know?'open':''}><summary>Getting to know ${esc(nm.name)} <span class="kn" data-known>${knownOf(nm)} of ${KNOW.length}</span></summary>
       <p class="sub">Write down what you know, once, so you don't have to carry it in your head. Empty is fine. Come back whenever you know more.</p>`;
     KNOW.forEach(([key,q])=>{ h+=`<label for="f-${nm.id}-${key}">${esc(q(nm.name))}</label><textarea id="f-${nm.id}-${key}" data-f="${key}" rows="2">${esc(nm.fields[key]||'')}</textarea>`; });
     h+=`</details>`;
@@ -1342,8 +1342,8 @@ function cardBody(nm){
     const fit=()=>{ t.style.height='auto'; t.style.height=Math.min(t.scrollHeight+2,320)+'px'; }; requestAnimationFrame(fit);
     t.addEventListener('input',fit);
     if(t.dataset.f) t.addEventListener('input',()=>{ const before=knownOf(nm); nm.fields[t.dataset.f]=t.value; scheduleSave();
-      const now=knownOf(nm), kn=b.querySelector('[data-known]'); if(kn) kn.textContent=now+' of 6';
-      if(nm.type==='character' && now===6 && before===5 && !nm.knownAll){ nm.knownAll=true; cheer(`You have answered all six questions for ${nm.name}.`,'Everything you know is kept here now.',false); } });
+      const now=knownOf(nm), kn=b.querySelector('[data-known]'); if(kn) kn.textContent=now+' of '+KNOW.length;
+      if(nm.type==='character' && now===KNOW.length && before===KNOW.length-1 && !nm.knownAll){ nm.knownAll=true; cheer(`You have answered every question for ${nm.name}.`,'Everything you know is kept here now.',false); } });
   });
   b.querySelectorAll('details.sect').forEach(d=>d.addEventListener('toggle',()=>{ (cardOpen[nm.id]||(cardOpen[nm.id]={}))[d.dataset.sect]=d.open; }));
   const talkOf=id=>(nm.talk||[]).find(x=>x.id===id);
@@ -3950,7 +3950,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-11-10c';
+const APP_VERSION='2026-11-10d';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
