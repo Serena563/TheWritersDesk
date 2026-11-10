@@ -837,7 +837,7 @@ function loadProject(){
   $('#back-chip').hidden=true; returnTop=null; RD.cur=null;
   dock={open:[],list:true}; applyPalette();
   applyParaStyle(); applyMode(); refreshCounts(); renderTabs(); scanNames(); renderSide(); renderRibbons();
-  if(LOG) LOG.ensure(p.id,p.title);
+  if(LOG) LOG.ensure(p.id,p.title,S.projects.map(x=>x.id));
   loadSnaps(p.id).then(()=>{ snapAt=0; snapshot(true); });
   loadEdoc(p.id).then(applyReadView);
   setTimeout(initMiles,1600);
@@ -1743,7 +1743,7 @@ function renderView(folioView, body){
   const np=body.querySelector('#new-proj'); if(np) np.onclick=()=>{ syncDom(); const q=newProject(); q.u=Date.now(); sbChanged=true; S.projects.push(q); S.activeId=q.id; loadProject(); saveNow(); closeFolio(); $('#title').focus(); $('#title').select(); };
   body.querySelectorAll('[data-imp]').forEach(b=>b.onclick=()=>{ impTarget=b.dataset.imp; $('#file-docx').click(); });
   body.querySelectorAll('[data-rename]').forEach(i=>i.onchange=()=>{ const d=P().drafts.find(x=>x.id===i.dataset.rename); if(d&&i.value.trim()){ d.name=i.value.trim(); renderDraftSelects(); scheduleSave(); } });
-  body.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=async()=>{ const p=P(), d=p.drafts.find(x=>x.id===b.dataset.ddel); if(!await ask(`Delete ${d.name}? Export it to Word first if you want to keep it.`,'Delete')) return; syncDom(); p.drafts=p.drafts.filter(x=>x.id!==d.id); upgrade(p); for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; if(fixSpans(eds[s])) setTimeout(scheduleSave,500); last[s]=edWords(s); } renderDraftSelects(); refreshCounts(); scheduleSave(); renderFolio(); });
+  body.querySelectorAll('[data-ddel]').forEach(b=>b.onclick=async()=>{ const p=P(), d=p.drafts.find(x=>x.id===b.dataset.ddel); if(!await ask(`Delete ${d.name}? Export it to Word first if you want to keep it.`,'Delete')) return; syncDom(); p.goneDrafts=p.goneDrafts||{}; p.goneDrafts[d.id]=Date.now(); p.drafts=p.drafts.filter(x=>x.id!==d.id); upgrade(p); for(const s of ['first','second']){ eds[s].innerHTML=(slotDraft(s)||{}).html||''; if(fixSpans(eds[s])) setTimeout(scheduleSave,500); last[s]=edWords(s); } renderDraftSelects(); refreshCounts(); scheduleSave(); renderFolio(); });
   const ad=body.querySelector('#add-draft'); if(ad) ad.onclick=()=>{ const d=newDraft(null); renderDraftSelects(); scheduleSave(); renderFolio(); toast(`${d.name} added. Pick it on a page to start`); };
   body.querySelectorAll('[data-exp]').forEach(b=>b.onclick=()=>exportDocx(b.dataset.exp));
   const bu=body.querySelector('#backup'); if(bu) bu.onclick=backup;
@@ -2039,10 +2039,12 @@ function unionBy(a,b,prefer){ const m=new Map(); (b||[]).forEach(x=>m.set(x.id,x
 function mergeStory(L,R,flag){
   const lNew=(L.u||0)>=(R.u||0); const base=JSON.parse(JSON.stringify(lNew?L:R)), other=lNew?R:L;
   if(lNew && (L.u||0)>(R.u||0)) flag.local=true;
-  const ds=new Map(); base.drafts.forEach(d=>ds.set(d.id,d));
+  const gd=Object.assign({},other.goneDrafts||{}); for(const [k,v] of Object.entries(base.goneDrafts||{})) if(v>(gd[k]||0)) gd[k]=v;
+  const ds=new Map(); base.drafts.forEach(d=>{ if(!gd[d.id]) ds.set(d.id,d); else if(other===L) flag.local=true; });
+  if(!ds.size) base.drafts.forEach(d=>ds.set(d.id,d));
   other.drafts.forEach(d=>{
     const b=ds.get(d.id);
-    if(!b){ if((d.u||0)>(base.u||0)){ ds.set(d.id,JSON.parse(JSON.stringify(d))); if(other===L) flag.local=true; } return; }
+    if(!b){ if(!gd[d.id]){ ds.set(d.id,JSON.parse(JSON.stringify(d))); if(other===L) flag.local=true; } return; }
     if((d.u||0)>(b.u||0)){
       const lost=other===R?b:null;
       if(lost && lost.html!==d.html && (lost.u||0)>(DBX.synced||0)){ const c=JSON.parse(JSON.stringify(lost)); c.id='d'+uid(); c.name=lost.name+' (this device)'; c.u=Date.now(); ds.set(c.id,c); flag.local=true; flag.copies=(flag.copies||0)+1; }
@@ -2050,7 +2052,7 @@ function mergeStory(L,R,flag){
     else if(other===R && (b.u||0)>(d.u||0)) flag.local=true;
     else if(other===L && (b.u||0)>(d.u||0) && d.html!==b.html && (d.u||0)>(DBX.synced||0)){ const c=JSON.parse(JSON.stringify(d)); c.id='d'+uid(); c.name=d.name+' (this device)'; c.u=Date.now(); ds.set(c.id,c); flag.local=true; flag.copies=(flag.copies||0)+1; }
   });
-  base.drafts=[...ds.values()];
+  base.drafts=[...ds.values()]; base.goneDrafts=gd;
   base.knip=unionBy(base.knip,other.knip,'a'); base.names=unionBy(base.names,other.names,'a'); base.later=unionBy(base.later,other.later,'a');
   const st=base.stats||{}, os=other.stats||{};
   ['total','forward','mid'].forEach(k=>{ if((os[k]||0)>(st[k]||0)){ st[k]=os[k]; if(other===L) flag.local=true; } });
@@ -2228,7 +2230,7 @@ function openLog(){ if(LOG) LOG.refresh(); const s=$('#logsheet'); s.inert=false
 function closeLog(){ const s=$('#logsheet'); s.classList.remove('open'); s.inert=true; s.setAttribute('aria-hidden','true'); }
 $('#open-log').onclick=openLog;
 $('#quick-pause').onclick=()=>{ if(!LOG||!LOG.running()) return; flushTrack(); LOG.togglePause(); toast(LOG.paused()?'Sprint paused. Take your time':'Sprint is running again'); };
-$('#quick-sprint').onclick=()=>{ if(!LOG) return; if(LOG.running()){ flushTrack(); LOG.quickStop(); } else { LOG.ensure(P().id,P().title); LOG.quickStart(); toast('Sprint started. Write away'); } };
+$('#quick-sprint').onclick=()=>{ if(!LOG) return; if(LOG.running()){ flushTrack(); LOG.quickStop(); } else { LOG.ensure(P().id,P().title,S.projects.map(x=>x.id)); LOG.quickStart(); toast('Sprint started. Write away'); } };
 $('#log-close').onclick=closeLog;
 function mountLogSheet(){
   try{
@@ -3518,22 +3520,37 @@ return {
   mergeIn(x){
     let won=false; const ns=normSettings(x.settings||{});
     const lu=S.settings.u||0, ru=ns.u||0;
-    if(ru>lu){ const mine=S.settings.projects; S.settings=ns; mine.forEach(p=>{ if(!proj(p.id)){ S.settings.projects.push(p); won=true; } }); }
-    else { if(lu>ru) won=true; ns.projects.forEach(p=>{ if(!proj(p.id)) S.settings.projects.push(p); }); }
+    const gone=Object.assign({},ns.gone||{}); for(const [k,v] of Object.entries(S.settings.gone||{})) if(v>(gone[k]||0)) gone[k]=v;
+    if(ru>lu){ const mine=S.settings.projects; S.settings=ns; mine.forEach(p=>{ if(!proj(p.id)&&!gone[p.id]){ S.settings.projects.push(p); won=true; } }); }
+    else { if(lu>ru) won=true; ns.projects.forEach(p=>{ if(!proj(p.id)&&!gone[p.id]) S.settings.projects.push(p); }); }
+    S.settings.gone=gone; S.settings.projects=S.settings.projects.filter(p=>!gone[p.id]);
+    if(!proj(S.settings.activeProject)&&S.settings.projects[0]) S.settings.activeProject=S.settings.projects[0].id;
     const rd=x.days||{};
     for(const [k,v] of Object.entries(rd)){ const l=S.days[k]; if(!l||(v.u||0)>(l.u||0)) S.days[k]=v; }
     for(const [k,l] of Object.entries(S.days)){ const v=rd[k]; if(l.u && (!v||(l.u||0)>(v.u||0))) won=true; }
     saveLocal(); renderSoon(); return won;
   },
-  ensure(sbId,title){
+  ensure(sbId,title,live){
     title=(title||'Untitled').trim(); let ch=false;
     let p=byStory(sbId);
-    if(!p){ p=S.settings.projects.find(x=>!x.sbId&&x.title.trim().toLowerCase()===title.toLowerCase()); if(p){ p.sbId=sbId; ch=true; } }
+    /* a book with the same title whose story no longer exists is the same book: link it again instead of adding a copy */
+    if(!p){ const same=S.settings.projects.filter(x=>x.title.trim().toLowerCase()===title.toLowerCase()&&(!x.sbId||(live&&!live.includes(x.sbId))));
+      p=same.find(x=>hasData(x.id))||same[0]; if(p){ p.sbId=sbId; ch=true; } }
     else p=adopt(p);
     if(!p){ const keep=S.settings.activeProject; p=newProject(title); p.sbId=sbId; ch=true; if(runningDay()) S.settings.activeProject=keep; }
     if(!runningDay() && S.settings.activeProject!==p.id){ S.settings.activeProject=p.id; view.wordsPid=null; ch=true; }
     if(ch){ touch('settings'); renderSoon(); }
     return p.id;
+  },
+  /* tidy up: books whose story is gone and that hold nothing (no sprints, no target) */
+  tidy(live){
+    if(!Array.isArray(live)||!live.length) return 0; const run=runningDay(); const now=Date.now(); let n=0;
+    S.settings.gone=S.settings.gone||{};
+    S.settings.projects=S.settings.projects.filter(p=>{
+      const orphan=p.sbId && !live.includes(p.sbId);
+      if(!orphan || hasData(p.id) || p.target || p.id===S.settings.activeProject || (run&&run.running&&run.running.pid===p.id)) return true;
+      S.settings.gone[p.id]=now; n++; return false; });
+    if(n){ touch('settings'); renderSoon(); } return n;
   },
   rename(sbId,title){ const p=byStory(sbId); if(p&&title&&p.title!==title){ p.title=title; touch('settings'); renderSoon(); adopt(p); } },
   sbIdOf(pid){ const p=proj(pid); return p&&p.sbId; },
@@ -3933,7 +3950,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-11-10a';
+const APP_VERSION='2026-11-10c';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
@@ -3949,6 +3966,7 @@ const APP_VERSION='2026-11-10a';
   setTimeout(autoWinter, 1500);
   applySide(); applyTw(); loadProject();
   if(store.mode==='memory') $('#saved').textContent='Not saved on this device: make a backup';
+  else setTimeout(()=>{ try{ if(LOG&&LOG.tidy&&!DBX.stopped){ const n=LOG.tidy(S.projects.map(x=>x.id)); if(n) toast(`Tidied ${n} empty book${n>1?'s':''} from your writing log`); } }catch(e){} }, 8000);
 })();
 })();
 
