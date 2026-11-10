@@ -23,7 +23,7 @@
 <style>
 :root{
   --paper:#f2eadb; --paper-line:rgba(60,45,30,.12); --ink:#2a231b; --ink-soft:#7c6f5e;
-  --t-lade:#e0c36f; --t-later:#a9bf9c; --t-feel:#d3a8b8; --t-checks:#a9b9cf; --t-today:#e3b38a;
+  --t-lade:#e0c36f; --t-later:#a9bf9c; --t-feel:#d3a8b8; --t-checks:#a9b9cf; --t-today:#e3b38a; --t-book:#b9a7d6;
   --m-g:rgba(110,160,105,.36); --m-y:rgba(226,186,60,.46); --m-r:rgba(205,100,85,.30);
   --n-character:#c49aa8; --n-place:#8fa7bf; --n-food:#d8b86a; --n-animal:#9db795; --n-other:#b0a697;
   --ui-font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
@@ -113,6 +113,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
 .stab[data-side="feel"]{background:var(--t-feel)}
 .stab[data-side="checks"]{background:var(--t-checks)}
 .stab[data-side="today"]{background:var(--t-today)}
+.stab[data-side="book"]{background:var(--t-book)}
 .nb{position:relative;z-index:2;flex:1;min-height:0;overflow-y:auto;background:var(--paper);color:var(--ink);border-radius:16px;padding:1.1rem 1.1rem 1.4rem;
   box-shadow:0 18px 44px rgba(0,0,0,.4),0 3px 10px rgba(0,0,0,.2);border-top:5px solid var(--accent,var(--t-names));scrollbar-width:thin}
 .nb h3{font:600 1.25rem/1.2 var(--serif);margin:0 0 .3rem}
@@ -215,6 +216,21 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
   box-shadow:0 40px 90px rgba(0,0,0,.55);transform:translate(-50%,-46%) scale(.97);opacity:0;pointer-events:none;transition:transform .45s var(--ease),opacity .3s}
 .folio.open{transform:translate(-50%,-50%);opacity:1;pointer-events:auto}
 .folio h2{font:600 1.7rem/1.1 var(--serif);margin:0 0 .35rem}
+.folio.wide{width:min(1100px,95vw);max-height:90vh}
+.povs{display:flex;gap:.4rem;margin:.2rem 0 .3rem}
+.povs .plate{font-size:.8rem}
+.povs .plate.on{background:var(--t-book)}
+.bookfeel textarea{min-height:12em;font:1rem/1.6 var(--serif)}
+.tryout{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.8rem}
+@media(max-width:760px){.tryout{grid-template-columns:1fr}}
+.tryout .col{display:flex;flex-direction:column;gap:.35rem}
+.tryout .hd{display:flex;align-items:baseline;justify-content:space-between;gap:.5rem}
+.tryout .hd b{font:600 1.05rem var(--serif)}
+.tryout .wc{font-size:.7rem;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.tryout .wc.over{color:#b0614f;font-weight:600}
+.tryout textarea{min-height:46vh;resize:vertical;font:1.02rem/1.7 var(--serif);padding:.9rem 1rem;border-radius:14px}
+.tryout .pick{align-self:flex-start}
+.tryout .col.chosen textarea{box-shadow:0 0 0 2px var(--t-book)}
 .folio .intro{font-size:.86rem;line-height:1.5;color:var(--ink-soft);margin:0 0 1rem}
 .folio .close{position:absolute;right:1rem;top:1rem;width:32px;height:32px;border-radius:50%;background:rgba(42,35,27,.07);border:0;font-size:1.1rem;line-height:1}
 .big{font:600 2.5rem/1 var(--serif);display:block;margin-top:.15rem;font-variant-numeric:lining-nums}
@@ -462,6 +478,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
         <button class="stab" data-side="drawer">Drawer<span class="badge" id="b-drawer"></span></button>
         <button class="stab" data-side="knip" title="Look at how much you have figured out about the story, and how solid the draft is becoming.">Clippings<span class="badge" id="b-knip"></span></button>
         <button class="stab" data-side="today" title="Your plate, your thinking time, and what you finished today">Today<span class="badge" id="b-today"></span></button>
+        <button class="stab" data-side="book" title="How this story feels to you, and whose eyes you tell it through">Book</button>
       </nav>
       <div class="nb" id="side-body"></div>
       <div class="ribbons" id="ribbons"></div>
@@ -1614,8 +1631,8 @@ document.addEventListener('keydown',e=>{
 
 /* ---------------- small notebook & sheets ---------------- */
 let folioView=null, sideView='names';
-const accents={drawer:'var(--t-lade)',knip:'var(--t-knip)',names:'var(--t-names)',later:'var(--t-later)',feel:'var(--t-feel)',checks:'var(--t-checks)',today:'var(--t-today)'};
-function openFolio(v){ if(v==='projects') safetyList().then(l=>{ safetyCache=l; if(folioView==='projects') renderFolio(); }); folioView=v; $('#folio').scrollTop=0; renderFolio(); $('#folio').classList.add('open'); $('#folio').setAttribute('aria-hidden','false'); $('#scrim').classList.add('open'); }
+const accents={drawer:'var(--t-lade)',knip:'var(--t-knip)',names:'var(--t-names)',later:'var(--t-later)',feel:'var(--t-feel)',checks:'var(--t-checks)',today:'var(--t-today)',book:'var(--t-book)'};
+function openFolio(v){ $('#folio').classList.toggle('wide',v==='trypov'); if(v==='projects') safetyList().then(l=>{ safetyCache=l; if(folioView==='projects') renderFolio(); }); folioView=v; $('#folio').scrollTop=0; renderFolio(); $('#folio').classList.add('open'); $('#folio').setAttribute('aria-hidden','false'); $('#scrim').classList.add('open'); }
 function closeFolio(){ folioView=null; $('#folio').classList.remove('open'); $('#folio').setAttribute('aria-hidden','true'); $('#scrim').classList.remove('open'); }
 $('#scrim').onclick=closeFolio; $('#folio-close').onclick=closeFolio;
 $('#open-progress').onclick=()=>openFolio('progress');
@@ -1624,7 +1641,7 @@ document.querySelectorAll('.stab').forEach(t=>t.onclick=()=>{ if(sideView==='nam
 function applySide(){ const open=S.sideOpen!==false; $('#side').classList.toggle('closed',!open); $('#toggle-side').setAttribute('aria-pressed',String(open)); }
 $('#side-close').onclick=()=>{ S.sideOpen=false; applySide(); scheduleSave(); };
 $('#toggle-side').onclick=()=>{ S.sideOpen=S.sideOpen===false; applySide(); scheduleSave(); };
-function renderFolio(){ if(folioView) renderView(folioView,$('#folio-body')); }
+function renderFolio(){ if(!folioView) return; const a=document.activeElement; if(a&&a.closest&&a.closest('#folio')&&/^(TEXTAREA|INPUT)$/.test(a.tagName)&&a.closest('.tryout,.bookfeel')) return; renderView(folioView,$('#folio-body')); }
 function renderSide(){
   const body=$('#side-body'); if(!body||!S) return;
   body.style.setProperty('--accent',accents[sideView]);
@@ -1726,7 +1743,7 @@ function renderView(folioView, body){
     h+=`<div class="group">Backup</div><div class="row"><button class="fbtn" id="backup">Make a backup</button><button class="fbtn" id="restore">Restore a backup</button></div>`;
     h+=`<p class="more" style="margin-top:1.4rem;text-align:center">TheWritersDesk · version ${APP_VERSION}</p>`;
   }
-  if(['later','feel','checks','today'].includes(folioView)){ if(folioView==='later') pruneLater(); h+=extraView(folioView,p); }
+  if(['later','feel','checks','today','book','trypov'].includes(folioView)){ if(folioView==='later') pruneLater(); h+=extraView(folioView,p); }
   body.innerHTML=h;
   body.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>jumpTo(+b.dataset.jump));
   body.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{ const k=P().knip.find(x=>x.id===b.dataset.copy); try{ await navigator.clipboard.writeText(k.text); toast('Copied'); }catch(e){ toast('Copying does not work in this browser'); } });
@@ -2567,6 +2584,8 @@ function extraView(view,p){
       ${HL?'':'<p class="more">This browser cannot show the soft colour. It works in a recent Safari or Chrome.</p>'}`;
   }
   if(view==='today') h+=todayView();
+  if(view==='book') h+=bookView();
+  if(view==='trypov') h+=tryView();
   return h;
 }
 function fitTa(t){ t.style.height='auto'; t.style.height=Math.min(t.scrollHeight+2,360)+'px'; }
@@ -2605,6 +2624,8 @@ function bindExtra(body,view){
     const sa=body.querySelector('#snap-all'); if(sa) sa.onclick=()=>{ snapShowAll=true; renderFolio(); };
   }
   if(view==='today') bindToday(body);
+  if(view==='book') bindBook(body);
+  if(view==='trypov') bindTry(body);
   if(view==='progress'){ bindGoal(body); const ol=body.querySelector('#open-log2'); if(ol) ol.onclick=()=>{ closeFolio(); openLog(); }; }
 }
 const NLx=()=>LOG&&LOG.lang&&LOG.lang()==='nl';
@@ -3740,6 +3761,47 @@ function bindToday(body){
   body.querySelectorAll('[data-thinkdel]').forEach(b=>b.onclick=async()=>{ if(!await ask('Remove this thinking time?','Remove')) return; S.think[today()]=thinkList().filter(y=>y.id!==b.dataset.thinkdel); scheduleSave(); renderSide(); });
   if(thinkFocus){ const t=body.querySelector(`[data-thinknote="${thinkFocus}"]`); thinkFocus=null; if(t) setTimeout(()=>t.focus(),60); }
 }
+/* ================= BOOK: how this story feels to you, and whose eyes ================= */
+const POVS=[['first','First person','I'],['third','Third person','she / he']];
+const TRY_MAX=500;
+const bookOf=()=>{ const p=P(); if(!p) return {}; return p.book||(p.book={feel:'',pov:null,tryFirst:'',tryThird:''}); };
+const povName=k=>{ const x=POVS.find(y=>y[0]===k); return x?x[1]:''; };
+function bookView(){
+  const b=bookOf(), p=P(); const tf=words(b.tryFirst||''), tt=words(b.tryThird||'');
+  let h=`<h3>${esc(p.title||'This story')}</h3><p class="intro">The way into this story. How it feels to you, and whose eyes you tell it through.</p>`;
+  h+=`<div class="group">How does this story feel to me?</div><div class="bookfeel"><textarea class="ta" id="book-feel" placeholder="Braindump it here. Images, feelings, scraps, anything.">${esc(b.feel||'')}</textarea></div>`;
+  h+=`<div class="group">Whose eyes?</div><div class="povs" role="group" aria-label="Point of view">${POVS.map(([k,l,w])=>`<button class="plate ${b.pov===k?'on':''}" data-pov="${k}" aria-pressed="${b.pov===k}"><span class="bowl">${w}</span>${l}</button>`).join('')}</div>`;
+  h+=`<p class="more">${b.pov?`You chose ${povName(b.pov).toLowerCase()}. You can always change it.`:`Not sure yet? Write the same moment twice and feel which one fits.`}</p>`;
+  h+=`<div class="row" style="margin-top:.5rem"><button class="fbtn ${b.pov?'':'strong'}" id="open-try">${tf||tt?'Open your try-out':'Try both'}</button></div>`;
+  if(tf||tt) h+=`<p class="more">Try-out: ${fmt(tf)} words in first person, ${fmt(tt)} in third.</p>`;
+  return h;
+}
+function bindBook(body){
+  const b=bookOf(); const f=body.querySelector('#book-feel');
+  if(f){ const fit=()=>{ f.style.height='auto'; f.style.height=Math.min(f.scrollHeight+2,560)+'px'; }; requestAnimationFrame(fit);
+    f.addEventListener('input',()=>{ b.feel=f.value; fit(); scheduleSave(); }); }
+  body.querySelectorAll('[data-pov]').forEach(x=>x.onclick=()=>{ b.pov=b.pov===x.dataset.pov?null:x.dataset.pov; scheduleSave(); renderSide(); renderFolio(); });
+  const o=body.querySelector('#open-try'); if(o) o.onclick=()=>openFolio('trypov');
+}
+function tryView(){
+  const b=bookOf();
+  let h=`<h2>Try both</h2><p class="intro">Write the same moment twice: once with "I", once with "she" or "he". Up to ${TRY_MAX} words each. Then read them both and feel which one fits this story. Nothing here touches your manuscript.</p>`;
+  h+=`<div class="tryout">`+[['first','tryFirst','First person','I open my eyes…'],['third','tryThird','Third person','She opens her eyes…']].map(([k,f,l,ph])=>{ const n=words(b[f]||'');
+    return `<div class="col ${b.pov===k?'chosen':''}"><div class="hd"><b>${l}</b><span class="wc ${n>=TRY_MAX?'over':''}" data-wc="${f}">${n} / ${TRY_MAX}</span></div>
+      <textarea class="ta" data-try="${f}" placeholder="${ph}">${esc(b[f]||'')}</textarea>
+      <button class="fbtn pick ${b.pov===k?'strong':''}" data-pick="${k}">${b.pov===k?'✓ This one fits':'This one fits'}</button></div>`; }).join('')+`</div>`;
+  return h;
+}
+function bindTry(body){
+  const b=bookOf();
+  body.querySelectorAll('[data-try]').forEach(t=>t.addEventListener('input',()=>{
+    let v=t.value; const parts=v.split(/(\s+)/); let n=0, cut=-1;
+    for(let i=0;i<parts.length;i++){ if(parts[i].trim()){ n++; if(n>TRY_MAX){ cut=i; break; } } }
+    if(cut>=0){ v=parts.slice(0,cut).join('').replace(/\s+$/,''); t.value=v; toast(`That's ${TRY_MAX} words, the end of this try-out`); }
+    b[t.dataset.try]=v; scheduleSave();
+    const c=body.querySelector(`[data-wc="${t.dataset.try}"]`); const m=words(v); if(c){ c.textContent=m+' / '+TRY_MAX; c.classList.toggle('over',m>=TRY_MAX); } }));
+  body.querySelectorAll('[data-pick]').forEach(x=>x.onclick=()=>{ b.pov=x.dataset.pick; scheduleSave(); renderFolio(); renderSide(); toast(`${povName(b.pov)} it is`); });
+}
 function todayBadge(){ const b=$('#b-today'); if(!b||!S) return; b.textContent=S.thinkRun?'thinking':(plateFull()?'✓':''); }
 setInterval(()=>{ if(!S) return; todayBadge(); if(sideView==='today' && S.thinkRun){ const el=$('#think-run-t'); if(el) el.textContent=thinkRunText(); } },20000);
 
@@ -3950,7 +4012,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-11-10d';
+const APP_VERSION='2026-11-10e';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
