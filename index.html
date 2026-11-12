@@ -381,6 +381,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
+.from-lately{margin:.6rem 0 .2rem;padding:.7rem .9rem;border-radius:12px;background:color-mix(in srgb,var(--t-today) 14%,transparent);font-size:.92rem;line-height:1.45}.from-lately b{display:block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7;margin-bottom:.15rem}.from-lately small{display:block;opacity:.75;margin-top:.25rem}.plate[data-hint]{box-shadow:0 0 0 2px var(--t-today)}
 </style>
 </head>
 <body>
@@ -2148,6 +2149,7 @@ async function dbxSyncAll(){
     DBX.forcePush=false;
     if(dbxDirtyS){ dbxDirtyS=false; syncDom(); S.savedAt=S.savedAt||Date.now(); DBX.remoteWords=stateWords(S); await dbxPushOne(SFILE,'s',()=>JSON.stringify(S),async()=>{ await dbxPullS(); }); }
     if(dbxDirtyL && LOG){ dbxDirtyL=false; await dbxPushOne(LFILE,'l',()=>JSON.stringify(LOG.exportState()),dbxPullL); }
+    try{ await deskBridge(); }catch(e){}
     DBX.at=Date.now(); DBX.synced=Date.now(); dbxSave(); setDbx('Synced'); if(LOG) LOG.setSync('synced');
     if(store.mode!=='memory') $('#saved').textContent='Synced';
   }catch(e){ if(e&&e.stopped){ setDbx('Syncing is paused. Nothing was overwritten. Tap Sync now when you are ready'); if(LOG) LOG.setSync('local'); DBX.busy=false; DBX.had=null; return; } setDbx(dbxErr(e)); if(e&&e.auth){ DBX.token=''; } if(DBX.had){ dbxDirtyS=dbxDirtyS||DBX.had[0]; dbxDirtyL=dbxDirtyL||DBX.had[1]; } }
@@ -2155,6 +2157,34 @@ async function dbxSyncAll(){
   DBX.busy=false;
   if(dbxDirtyS||dbxDirtyL){ clearTimeout(dbxT); dbxT=setTimeout(()=>{ dbxT=null; dbxSyncAll(); }, navigator.onLine===false?60000:8000); }
 }
+/* ---- Lately: your two apps keep each other up to date through your Dropbox ----
+   The desk shares only when and how long you wrote and thought, and how full your plate was. Never your text. */
+const DESK_FILE='/desk-to-lately.json', LATELY_FILE='/lately-status.json';
+let LATELY=null; try{ LATELY=JSON.parse(localStorage.getItem('sb-lately')||'null'); }catch(e){}
+function deskSummary(){
+  const from=new Date(Date.now()-60*864e5).toISOString().slice(0,10); const days={}; const day=ds=>days[ds]||(days[ds]={});
+  const L=LOG?LOG.exportState():{days:{},settings:{projects:[]}}; const projs=(L.settings&&L.settings.projects)||[];
+  const ph=(d,pid)=>((d.proj||{})[pid]&&d.proj[pid].phase)||((projs.find(p=>p.id===pid)||{}).phase)||'first-draft';
+  for(const [ds,d] of Object.entries(L.days||{})){ if(ds<from) continue;
+    const sp=(d.sprints||[]).filter(x=>x.end).map(x=>({id:x.id||String(x.start),start:x.start,end:x.end,min:Math.round(Math.max(0,x.end-x.start-(x.pause||0))/60000),words:x.words!=null?+x.words:null,phase:ph(d,x.pid)}));
+    if(sp.length) day(ds).sessions=sp; }
+  for(const [ds,l] of Object.entries(S.think||{})){ if(ds<from||!(l||[]).length) continue; day(ds).think=l.map(x=>({id:x.id,start:x.start,end:x.end,min:Math.round(x.mins||0)})); }
+  if(S.plate&&S.plate.date>=from) day(S.plate.date).plate={n:S.plate.n,full:!!S.plate.full};
+  for(const [ds,l] of Object.entries(S.wins||{})){ if(ds<from||!(l||[]).length) continue; day(ds).wins=l.length; }
+  return {app:'TheWritersDesk',v:1,days};
+}
+async function deskBridge(){
+  if(!dbxOn()) return;
+  const text=JSON.stringify(deskSummary());
+  if(text!==DBX.deskLast){
+    const r=await fetch('https://content.dropboxapi.com/2/files/upload',{method:'POST',headers:{Authorization:'Bearer '+await dbxTok(),'Content-Type':'application/octet-stream','Dropbox-API-Arg':hdr({path:DESK_FILE,mode:'overwrite',autorename:false,mute:true})},body:new Blob([text])});
+    if(r.ok) DBX.deskLast=text;
+  }
+  const f=await dbxDown(LATELY_FILE);
+  if(f){ try{ const x=JSON.parse(f.text); if(!LATELY||x.at!==LATELY.at){ LATELY=x; localStorage.setItem('sb-lately',f.text); try{ if(sideView==='today') renderSide(); }catch(e){} } }catch(e){} }
+}
+setInterval(()=>{ if(dbxOn()&&document.visibilityState==='visible'&&!DBX.busy) deskBridge().catch(()=>{}); },3*60000);
+document.addEventListener('visibilitychange',()=>{ if(dbxOn()&&document.visibilityState==='visible') setTimeout(()=>deskBridge().catch(()=>{}),2500); });
 let dbxLastPush=0;
 function dbxSoon(which){ if(!dbxOn()) return; if(which==='l') dbxDirtyL=true; else dbxDirtyS=true; if(dbxT) return; const wait=Math.max(5000, 30000-(Date.now()-dbxLastPush)); dbxT=setTimeout(()=>{ dbxT=null; dbxLastPush=Date.now(); dbxSyncAll(); },wait); }
 async function dbxCheck(){
@@ -3732,7 +3762,8 @@ function todayView(){
   const g=rw?dayGoalRw():dayGoal(), have=byMin?activeMin()+thinkMin():todayAll(), base=rw?gr.n:goalOf(), unit=byMin?'minutes':'words';
   let h=`<h3>Today</h3><p class="intro">Your plate, your thinking time, and everything you finish today.</p>`;
   if(plateFull()) h+=`<div class="full">Your plate is full. That is today's finish line.<small>You showed up and did the thing. Everything from here is extra.</small></div>`;
-  h+=`<div class="group">Your plate today</div><div class="plates" role="group" aria-label="How full is your plate today">${[1,2,3].map(k=>`<button class="plate ${chosen&&n===k?'on':''}" data-plate="${k}" aria-pressed="${chosen&&n===k}"><span class="bowl" aria-hidden="true">${'●'.repeat(k)}${'○'.repeat(3-k)}</span>${['Small','Medium','Full'][k-1]}</button>`).join('')}</div>`;
+  h+=`<div class="group">Your plate today</div><div class="plates" role="group" aria-label="How full is your plate today">${[1,2,3].map(k=>`<button class="plate ${chosen&&n===k?'on':''}" data-plate="${k}" ${!chosen&&LATELY&&LATELY.date===today()&&LATELY.plate===k?'data-hint="1"':''} aria-pressed="${chosen&&n===k}"><span class="bowl" aria-hidden="true">${'●'.repeat(k)}${'○'.repeat(3-k)}</span>${['Small','Medium','Full'][k-1]}</button>`).join('')}</div>`;
+  if(LATELY&&LATELY.date===today()&&LATELY.en) h+=`<div class="from-lately"><b>From Lately</b>${esc(LATELY.en)}${!chosen&&LATELY.plate?`<small>Lately suggests a ${['small','medium','full'][LATELY.plate-1]} plate.</small>`:''}</div>`;
   h+=`<p class="more">${chosen?`${['A small','A medium','A full'][n-1]} plate today. Fill it all the way, and that is your finish line.`:`How full is your plate today? Pick what you have, not what you wish you had.`}</p>`;
   if(g>0){ const pc=Math.min(100,Math.round(have/g*100)), met=have>=g;
     h+=`<div class="bar3" aria-hidden="true"><span style="width:${pc}%;background:${met?'#8fb685':'var(--t-today)'}"></span></div>
@@ -4012,7 +4043,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-11-10e';
+const APP_VERSION='2026-11-12a';
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
