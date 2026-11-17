@@ -23,7 +23,7 @@
 <style>
 :root{
   --paper:#f2eadb; --paper-line:rgba(60,45,30,.12); --ink:#2a231b; --ink-soft:#7c6f5e;
-  --t-lade:#e0c36f; --t-later:#a9bf9c; --t-feel:#d3a8b8; --t-checks:#a9b9cf; --t-today:#e3b38a; --t-book:#b9a7d6;
+  --t-lade:#e0c36f; --t-later:#a9bf9c; --t-feel:#d3a8b8; --t-checks:#a9b9cf; --t-today:#e3b38a; --t-book:#b9a7d6; --t-teaser:#8fc1b5;
   --m-g:rgba(110,160,105,.36); --m-y:rgba(226,186,60,.46); --m-r:rgba(205,100,85,.30);
   --n-character:#c49aa8; --n-place:#8fa7bf; --n-food:#d8b86a; --n-animal:#9db795; --n-other:#b0a697;
   --ui-font:-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
@@ -112,6 +112,11 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
 .stab[data-side="later"]{background:var(--t-later)}
 .stab[data-side="feel"]{background:var(--t-feel)}
 .stab[data-side="checks"]{background:var(--t-checks)}
+.stab[data-side="teasers"]{background:var(--t-teaser)}
+.tzq{font:italic 1.02rem/1.55 var(--serif);margin:.15rem 0 .5rem;padding-left:.8rem;border-left:3px solid var(--t-teaser)}
+.tzq p{margin:0 0 .5em}
+.item.tz.used{opacity:.6}
+::highlight(sb-teaser){text-decoration:underline dotted;text-decoration-color:#5f9e90;text-decoration-thickness:2px;text-underline-offset:3px}
 .stab[data-side="today"]{background:var(--t-today)}
 .stab[data-side="book"]{background:var(--t-book)}
 .nb{position:relative;z-index:2;flex:1;min-height:0;overflow-y:auto;background:var(--paper);color:var(--ink);border-radius:16px;padding:1.1rem 1.1rem 1.4rem;
@@ -448,6 +453,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
           <button class="pbtn keep" id="here-btn" hidden title="Tap, then tap the line on the left where you are. The left page then follows your writing on the right">Here I am</button>
           <button class="pbtn keep" id="here-stop" hidden aria-label="Stop following">×</button>
           <button class="pbtn keep" data-later-btn="first" title="Come back here later (Cmd/Ctrl+Shift+L)">Later</button>
+          <button class="pbtn keep" data-teaser="first" title="Save the selected lines as a teaser">Teaser</button>
           <button class="pbtn keep" data-addname="first" title="Add the selected name (Cmd/Ctrl+Shift+N)">Add name</button>
           <button class="pbtn keep" data-cut="first" id="cut-first" title="Move selection to your clippings (Cmd/Ctrl+Shift+K)">To clippings</button>
         </div>
@@ -463,6 +469,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
           <span class="count" id="count-second"></span>
           <select class="pbtn" id="ch-second" aria-label="Jump to chapter" hidden></select>
           <button class="pbtn keep" data-later-btn="second" title="Come back here later (Cmd/Ctrl+Shift+L)">Later</button>
+          <button class="pbtn keep" data-teaser="second" title="Save the selected lines as a teaser">Teaser</button>
           <button class="pbtn keep" data-addname="second" title="Add the selected name (Cmd/Ctrl+Shift+N)">Add name</button>
           <button class="pbtn keep" data-cut="second" title="Move selection to your clippings (Cmd/Ctrl+Shift+K)">To clippings</button>
         </div>
@@ -487,6 +494,7 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
         <button class="stab" data-side="later" title="Places to come back to">Later<span class="badge" id="b-later"></span></button>
         <button class="stab" data-side="feel" title="Feel Questions and the ending">Feel</button>
         <button class="stab" data-side="checks" title="Your checklist">Checks</button>
+        <button class="stab" data-side="teasers" title="Lines you might share before the book is out">Teasers<span class="badge" id="b-teasers"></span></button>
       </nav>
     </aside>
   </main>
@@ -816,7 +824,7 @@ function upgrade(p){
   if(!p.drafts){ p.drafts=[{id:'d'+uid(),name:'First Draft',html:(p.first&&p.first.html)||'',created:p.created||new Date().toISOString()},{id:'d'+uid(),name:'Second Draft',html:(p.second&&p.second.html)||'',created:p.created||new Date().toISOString()}]; delete p.first; delete p.second; }
   p.slots=p.slots||{}; if(!p.drafts.some(d=>d.id===p.slots.first)) p.slots.first=p.drafts[0].id;
   if(!p.drafts.some(d=>d.id===p.slots.second)||p.slots.second===p.slots.first){ const o=p.drafts.find(d=>d.id!==p.slots.first); p.slots.second=o?o.id:null; }
-  if(p.read && p.read.src && !p.read.draftId){ p.read.draftId=p.slots[p.read.src]; } p.names=p.names||[]; p.names.forEach(n=>{ n.aliases=n.aliases||[]; n.links=n.links||[]; }); p.ignored=p.ignored||[]; p.seen=p.seen||{}; p.manual=p.manual||[]; p.stats=p.stats||{total:0,forward:0,mid:0,days:{}}; p.knip=p.knip||[]; p.later=p.later||[]; return p; }
+  if(p.read && p.read.src && !p.read.draftId){ p.read.draftId=p.slots[p.read.src]; } p.names=p.names||[]; p.names.forEach(n=>{ n.aliases=n.aliases||[]; n.links=n.links||[]; }); p.ignored=p.ignored||[]; p.seen=p.seen||{}; p.manual=p.manual||[]; p.stats=p.stats||{total:0,forward:0,mid:0,days:{}}; p.knip=p.knip||[]; p.later=p.later||[]; p.teasers=p.teasers||[]; return p; }
 const P = () => S.projects.find(p=>p.id===S.activeId);
 const last = { first:0, second:0 };
 const lastT = { first:Date.now(), second:Date.now() };
@@ -900,6 +908,7 @@ function renderTabs(){
   $('#b-drawer').textContent = y ? String(y) : '';
   $('#b-names').textContent = candidates.length ? String(candidates.length) : '';
   const lc=laterEls().length; $('#b-later').textContent = lc ? String(lc) : '';
+  { const tp=P(); const tc=tp?(tp.teasers||[]).filter(t=>!t.used).length:0; const bt=$('#b-teasers'); if(bt) bt.textContent = tc ? String(tc) : ''; }
 }
 function movePill(){
   const on=document.querySelector('.seg button[aria-pressed="true"]'), pill=$('#seg-pill');
@@ -1632,7 +1641,7 @@ document.addEventListener('keydown',e=>{
 
 /* ---------------- small notebook & sheets ---------------- */
 let folioView=null, sideView='names';
-const accents={drawer:'var(--t-lade)',knip:'var(--t-knip)',names:'var(--t-names)',later:'var(--t-later)',feel:'var(--t-feel)',checks:'var(--t-checks)',today:'var(--t-today)',book:'var(--t-book)'};
+const accents={drawer:'var(--t-lade)',knip:'var(--t-knip)',names:'var(--t-names)',later:'var(--t-later)',feel:'var(--t-feel)',checks:'var(--t-checks)',today:'var(--t-today)',book:'var(--t-book)',teasers:'var(--t-teaser)'};
 function openFolio(v){ $('#folio').classList.toggle('wide',v==='trypov'); if(v==='projects') safetyList().then(l=>{ safetyCache=l; if(folioView==='projects') renderFolio(); }); folioView=v; $('#folio').scrollTop=0; renderFolio(); $('#folio').classList.add('open'); $('#folio').setAttribute('aria-hidden','false'); $('#scrim').classList.add('open'); }
 function closeFolio(){ folioView=null; $('#folio').classList.remove('open'); $('#folio').setAttribute('aria-hidden','true'); $('#scrim').classList.remove('open'); }
 $('#scrim').onclick=closeFolio; $('#folio-close').onclick=closeFolio;
@@ -1744,6 +1753,7 @@ function renderView(folioView, body){
     h+=`<div class="group">Backup</div><div class="row"><button class="fbtn" id="backup">Make a backup</button><button class="fbtn" id="restore">Restore a backup</button></div>`;
     h+=`<p class="more" style="margin-top:1.4rem;text-align:center">TheWritersDesk · version ${APP_VERSION}</p>`;
   }
+  if(folioView==='teasers') h+=teaserView(p);
   if(['later','feel','checks','today','book','trypov'].includes(folioView)){ if(folioView==='later') pruneLater(); h+=extraView(folioView,p); }
   body.innerHTML=h;
   body.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>jumpTo(+b.dataset.jump));
@@ -2071,7 +2081,7 @@ function mergeStory(L,R,flag){
     else if(other===L && (b.u||0)>(d.u||0) && d.html!==b.html && (d.u||0)>(DBX.synced||0)){ const c=JSON.parse(JSON.stringify(d)); c.id='d'+uid(); c.name=d.name+' (this device)'; c.u=Date.now(); ds.set(c.id,c); flag.local=true; flag.copies=(flag.copies||0)+1; }
   });
   base.drafts=[...ds.values()]; base.goneDrafts=gd;
-  base.knip=unionBy(base.knip,other.knip,'a'); base.names=unionBy(base.names,other.names,'a'); base.later=unionBy(base.later,other.later,'a');
+  base.knip=unionBy(base.knip,other.knip,'a'); base.names=unionBy(base.names,other.names,'a'); base.later=unionBy(base.later,other.later,'a'); base.tzGone=Object.assign({},other.tzGone||{},base.tzGone||{}); base.teasers=unionBy(base.teasers,other.teasers,'a').filter(t=>!base.tzGone[t.id]);
   const st=base.stats||{}, os=other.stats||{};
   ['total','forward','mid'].forEach(k=>{ if((os[k]||0)>(st[k]||0)){ st[k]=os[k]; if(other===L) flag.local=true; } });
   st.days=st.days||{}; for(const [d,v] of Object.entries(os.days||{})) if(v>(st.days[d]||0)){ st.days[d]=v; if(other===L) flag.local=true; }
@@ -2620,6 +2630,7 @@ function extraView(view,p){
 }
 function fitTa(t){ t.style.height='auto'; t.style.height=Math.min(t.scrollHeight+2,360)+'px'; }
 function bindExtra(body,view){
+  if(view==='teasers') bindTeasers(body);
   body.querySelectorAll('textarea.ta').forEach(t=>{ requestAnimationFrame(()=>fitTa(t)); t.addEventListener('input',()=>fitTa(t)); });
   const p=P();
   if(view==='later'){
@@ -4043,7 +4054,104 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-11-12a';
+const APP_VERSION='2026-11-17a';
+/* ================= TEASERS: lines you might share before the book is out ================= */
+function selectionPieces(range){
+  const box=document.createElement('div'); box.appendChild(range.cloneContents());
+  box.querySelectorAll('span.later,.herebar').forEach(x=>x.remove());
+  const blocks=[...box.querySelectorAll('p,h2,div')].filter(b=>!b.querySelector('p,h2,div'));
+  const parts=(blocks.length?blocks:[box]).map(b=>{
+    const c=b.cloneNode(true);
+    c.querySelectorAll('*').forEach(el=>{ if(!/^(EM|I|STRONG|B|BR)$/.test(el.tagName)) el.replaceWith(...el.childNodes); });
+    return {html:c.innerHTML.replace(/<i>/g,'<em>').replace(/<\/i>/g,'</em>').replace(/<b>/g,'<strong>').replace(/<\/b>/g,'</strong>').trim(), text:c.textContent.replace(/\s+/g,' ').trim()};
+  }).filter(x=>x.text);
+  return {html:parts.map(x=>`<p>${x.html}</p>`).join(''), text:parts.map(x=>x.text).join('\n\n')};
+}
+const TZ=p=>p.teasers||(p.teasers=[]);
+function addTeaser(k){
+  const s=getSelection(); let r=null;
+  if(s.rangeCount && !s.isCollapsed && eds[k].contains(s.getRangeAt(0).commonAncestorContainer)) r=s.getRangeAt(0);
+  else if(ranges[k] && !ranges[k].collapsed && eds[k].contains(ranges[k].commonAncestorContainer)) r=ranges[k];
+  if(!r){ toast('Select the lines you want to keep as a teaser first'); return; }
+  const piece=selectionPieces(r); if(!piece.text){ toast('Select some text first'); return; }
+  const p=P(), d=slotDraft(k);
+  if(TZ(p).some(t=>t.text===piece.text)){ toast('That one is already in your teasers'); return; }
+  TZ(p).unshift({id:'t'+uid(), text:piece.text, html:piece.html, created:new Date().toISOString(), draftId:d&&d.id, draftName:d&&d.name, note:'', used:false});
+  p.u=Date.now(); scheduleSave(); renderTabs(); markTeasers();
+  if(sideView==='teasers') renderSide();
+  toast('Saved as a teaser');
+}
+document.querySelectorAll('[data-teaser]').forEach(b=>b.addEventListener('click',()=>addTeaser(b.dataset.teaser)));
+
+/* find a teaser back in the text, and show it with a soft underline */
+const tzKey=t=>t.text.split('\n\n')[0].slice(0,60);
+function findTeaser(t){
+  const key=tzKey(t); if(!key) return null;
+  for(const k of ['first','second']){
+    if(k==='second' && P().mode==='write') continue;
+    for(const para of paragraphs(k)){ const i=para.textContent.indexOf(key); if(i>=0) return {k,para,i}; }
+  }
+  return null;
+}
+function textRange(para,start,len){
+  const tw=document.createTreeWalker(para,NodeFilter.SHOW_TEXT); let n, acc=0, r=document.createRange(), set=false;
+  while((n=tw.nextNode())){ const L=n.nodeValue.length;
+    if(!set && start<acc+L){ r.setStart(n,start-acc); set=true; }
+    if(set && start+len<=acc+L){ r.setEnd(n,start+len-acc); return r; }
+    acc+=L; }
+  if(set){ r.setEndAfter(para.lastChild||para); return r; } return null;
+}
+const HLT=typeof CSS!=='undefined' && CSS.highlights && typeof Highlight!=='undefined';
+let tzT=null;
+function markTeasers(){
+  if(!HLT || !S || !P()) return;
+  const hl=new Highlight();
+  for(const t of TZ(P())){
+    const lines=t.text.split('\n\n');
+    for(const line of lines){ const key=line.slice(0,400);
+      for(const k of ['first','second']) for(const para of paragraphs(k)){ const i=para.textContent.indexOf(key); if(i>=0){ const r=textRange(para,i,key.length); if(r) hl.add(r); } }
+    }
+  }
+  CSS.highlights.set('sb-teaser',hl);
+}
+for(const k of ['first','second']) eds[k].addEventListener('input',()=>{ clearTimeout(tzT); tzT=setTimeout(()=>idle(markTeasers),3000); });
+function goTeaser(id){
+  const t=TZ(P()).find(x=>x.id===id); if(!t) return;
+  const f=findTeaser(t);
+  if(!f){ toast("This teaser isn't in the open drafts anymore, or it has changed since. It stays saved here"); return; }
+  if(window.innerWidth<=1100){ S.sideOpen=false; applySide(); }
+  if(f.k==='second' && P().mode==='write'){ P().mode='rewrite'; applyMode(); }
+  setTimeout(()=>{ f.para.scrollIntoView({block:'center',behavior:'smooth'}); f.para.classList.remove('pflash'); void f.para.offsetWidth; f.para.classList.add('pflash'); },60);
+}
+async function copyTeaser(id){
+  const t=TZ(P()).find(x=>x.id===id); if(!t) return;
+  try{ await navigator.clipboard.writeText(t.text); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=t.text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); }catch(x){} ta.remove(); }
+  toast('Copied. Ready to paste');
+}
+function teaserView(p){
+  const list=TZ(p), open=list.filter(t=>!t.used), used=list.filter(t=>t.used);
+  let h=`<h3>Teasers</h3><p class="intro">Lines from ${esc(p.title)} you might share before the book is out: in your newsletter, on Discord, or as a quote card. Select text on either page and tap Teaser.</p>`;
+  if(!list.length) return h+`<p class="empty">No teasers yet. When a line makes you smile while you write or reread, select it and tap Teaser.</p>`;
+  const card=t=>{ const w=words(t.text), c=t.text.length;
+    return `<div class="item tz${t.used?' used':''}" data-titem="${t.id}"><div class="tzq">${t.html||esc(t.text)}</div>
+      <div class="meta">${fmt(w)} words · ${fmt(c)} characters · from ${esc(t.draftName||'your draft')}, ${niceDate(t.created)}</div>
+      <textarea class="ta" rows="1" data-tnote="${t.id}" placeholder="Where you want to use it (optional)">${esc(t.note||'')}</textarea>
+      <div class="row" style="margin-top:.45rem"><button class="fbtn strong" data-tcopy="${t.id}">Copy</button><button class="fbtn" data-tgo="${t.id}">Go there</button><button class="fbtn" data-tused="${t.id}" aria-pressed="${!!t.used}">${t.used?'Shared ✓':'Mark as shared'}</button><button class="fbtn" data-tdel="${t.id}" aria-label="Remove this teaser">Remove</button></div></div>`; };
+  open.forEach(t=>h+=card(t));
+  if(!open.length) h+=`<p class="empty">Every teaser here has been shared. Time to find a new favourite line.</p>`;
+  if(used.length) h+=`<div class="group">Shared already · ${used.length}</div>`+used.map(card).join('');
+  return h;
+}
+function bindTeasers(body){
+  const p=P();
+  body.querySelectorAll('[data-tnote]').forEach(t=>t.addEventListener('input',()=>{ const x=TZ(p).find(y=>y.id===t.dataset.tnote); if(x){ x.note=t.value; p.u=Date.now(); scheduleSave(); } }));
+  body.querySelectorAll('[data-tcopy]').forEach(b=>b.onclick=()=>copyTeaser(b.dataset.tcopy));
+  body.querySelectorAll('[data-tgo]').forEach(b=>b.onclick=()=>goTeaser(b.dataset.tgo));
+  body.querySelectorAll('[data-tused]').forEach(b=>b.onclick=()=>{ const x=TZ(p).find(y=>y.id===b.dataset.tused); if(!x) return; x.used=!x.used; x.usedAt=x.used?new Date().toISOString():null; p.u=Date.now(); scheduleSave(); renderTabs(); renderSide(); });
+  body.querySelectorAll('[data-tdel]').forEach(b=>b.onclick=async()=>{ if(!await ask('Remove this teaser? The text in your draft stays as it is.','Remove')) return; const id=b.dataset.tdel; p.teasers=TZ(p).filter(y=>y.id!==id); (p.tzGone=p.tzGone||{})[id]=Date.now(); p.u=Date.now(); scheduleSave(); renderTabs(); renderSide(); markTeasers(); });
+}
+
 /* ---------------- start ---------------- */
 (async function start(){
   mountLogSheet();
