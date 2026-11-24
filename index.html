@@ -387,6 +387,24 @@ select.pbtn{appearance:none;-webkit-appearance:none;max-width:10rem}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
 .from-lately{margin:.6rem 0 .2rem;padding:.7rem .9rem;border-radius:12px;background:color-mix(in srgb,var(--t-today) 14%,transparent);font-size:.92rem;line-height:1.45}.from-lately b{display:block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;opacity:.7;margin-bottom:.15rem}.from-lately small{display:block;opacity:.75;margin-top:.25rem}.plate[data-hint]{box-shadow:0 0 0 2px var(--t-today)}
+
+.ufbox{margin:.9rem 0 .4rem;padding:.6rem .75rem .5rem;border-radius:12px;background:color-mix(in srgb,var(--n-character) 13%,transparent);border:1px solid color-mix(in srgb,var(--n-character) 30%,transparent)}
+.ufbox .sub{margin:.2rem 0 .4rem}
+.ufhead{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap}
+.ufhead .uft{flex:1;font-size:.82rem;opacity:.85}
+.ufhead a.mini{text-decoration:none}
+.ufimg{width:34px;height:34px;border-radius:50%;background-size:cover;background-position:center;flex:none}
+.uflist{display:grid;gap:.3rem;margin:.2rem 0 .4rem}
+.ufl{display:flex;align-items:center;gap:.5rem}.ufl span{min-width:5.2rem;font-size:.82rem;opacity:.8}
+.ufl input{flex:1;min-width:0;font:inherit;font-size:.9rem;padding:.35rem .5rem;border-radius:8px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);background:transparent;color:inherit}
+.ufrow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.2rem 0 .5rem}.ufrow label{font-size:.85rem;opacity:.85}
+.ufrow select{flex:1;min-width:10rem;appearance:none;-webkit-appearance:none;border:0;border-radius:999px;padding:.4rem .8rem;font:inherit;font-size:.85rem;font-weight:500;background:rgba(42,35,27,.07);color:var(--ink-soft)}
+.ufnote{margin-top:.1rem}
+
+.kitem .kex[data-kread]{cursor:pointer}
+.kfull{font:1rem/1.65 var(--serif);margin:.4rem 0 .6rem;padding:.2rem 0 .2rem .85rem;border-left:3px solid var(--paper-line)}
+.kfull p{margin:0 0 .75em}
+.kfull p:last-child{margin-bottom:0}
 </style>
 </head>
 <body>
@@ -1116,12 +1134,13 @@ function applyMark(cls){
 document.querySelectorAll('[data-mark]').forEach(b=>b.addEventListener('click',()=>applyMark(b.dataset.mark)));
 
 /* ---------------- clippings ---------------- */
+const knipOpen=new Set();
 function cutToKnip(k){
   const r=liveRange(k);
   if(!r){ toast('Select the part you want to keep first'); return; }
-  const text=r.toString().trim(); if(!text) return;
+  const piece=selectionPieces(r); const text=piece.text||r.toString().trim(); if(!text) return;
   const w=words(text);
-  P().knip.unshift({id:uid(), text, words:w, date:new Date().toISOString(), from:draftName(k)});
+  P().knip.unshift({id:uid(), text, html:piece.html||'', words:w, date:new Date().toISOString(), from:draftName(k)});
   r.deleteContents(); getSelection().removeAllRanges(); ranges[k]=null;
   last[k]=edWords(k);
   refreshCounts(); renderTabs(); scheduleSave(); refreshPanels();
@@ -1247,7 +1266,7 @@ function scanNames(){
   for(const w of p.manual) if(!known.has(w.toLowerCase()) && !ign.has(w.toLowerCase()) && !list.some(([x])=>x===w)) list.unshift([w,0]);
   candidates=list.sort((a,b)=>b[1]-a[1]);
   if(changed) scheduleSave();
-  renderTabs(); if(sideView==='names' && !editingCard()) renderSide(); renderRibbons(); markOpeners();
+  renderTabs(); if(sideView==='names' && !editingCard()) renderSide(); renderRibbons(); markOpeners(); ufLinkSoon();
 }
 function addName(w,type){
   const p=P(); if(findName(w)) return;
@@ -1344,6 +1363,7 @@ function cardBody(nm){
         <div class="tm">${niceDate(x.at)}<button class="ibtn" data-tdel="${x.id}" aria-label="Remove this question">×</button></div></div>`).join('')}</div>
       <button class="mini" data-tnew>Ask ${esc(nm.name)} something</button></details>`;
   }
+  h+=ufCardHTML(nm);
   (FIELDS[nm.type]||FIELDS.other).forEach(([key,label])=>{
     h+=`<label for="f-${nm.id}-${key}">${label}</label><textarea id="f-${nm.id}-${key}" data-f="${key}" rows="2">${esc(nm.fields[key]||'')}</textarea>`;
   });
@@ -1364,11 +1384,11 @@ function cardBody(nm){
   h+=`<label for="t-${nm.id}">Type</label><select id="t-${nm.id}" data-type>${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${k===nm.type?'selected':''}>${v}</option>`).join('')}</select>
       <label for="r-${nm.id}">Name as it is written</label><input class="ren" id="r-${nm.id}" data-ren value="${esc(nm.name)}">
       <div class="row" style="margin-top:1rem"><button class="mini" data-del>Remove this card</button></div>`;
-  b.innerHTML=h;
+  b.innerHTML=h; ufCardBind(b,nm);
   b.querySelectorAll('textarea').forEach(t=>{
     const fit=()=>{ t.style.height='auto'; t.style.height=Math.min(t.scrollHeight+2,320)+'px'; }; requestAnimationFrame(fit);
     t.addEventListener('input',fit);
-    if(t.dataset.f) t.addEventListener('input',()=>{ const before=knownOf(nm); nm.fields[t.dataset.f]=t.value; scheduleSave();
+    if(t.dataset.f) t.addEventListener('input',()=>{ const before=knownOf(nm); nm.fields[t.dataset.f]=t.value; scheduleSave(); ufSetField(nm,t.dataset.f,t.value);
       const now=knownOf(nm), kn=b.querySelector('[data-known]'); if(kn) kn.textContent=now+' of '+KNOW.length;
       if(nm.type==='character' && now===KNOW.length && before===KNOW.length-1 && !nm.knownAll){ nm.knownAll=true; cheer(`You have answered every question for ${nm.name}.`,'Everything you know is kept here now.',false); } });
   });
@@ -1395,9 +1415,9 @@ function cardBody(nm){
   const ls=b.querySelector('[data-link]'); if(ls) ls.onchange=e=>{ const o=P().names.find(x=>x.id===e.target.value); if(o){ linkBoth(nm,o,true); toast(`${nm.name} and ${o.name} are linked`); } };
   b.querySelectorAll('[data-lopen]').forEach(x=>x.onclick=()=>openCard(x.dataset.lopen));
   b.querySelectorAll('[data-unlink]').forEach(x=>x.onclick=()=>{ const o=P().names.find(y=>y.id===x.dataset.unlink); if(o) linkBoth(nm,o,false); });
-  b.querySelector('[data-type]').onchange=e=>{ nm.type=e.target.value; scheduleSave(); renderSide(); renderRibbons(); };
+  b.querySelector('[data-type]').onchange=e=>{ nm.type=e.target.value; scheduleSave(); renderSide(); renderRibbons(); ufLinkSoon(); };
   b.querySelector('[data-ren]').onchange=e=>{ const v=e.target.value.trim(); if(v){ nm.name=v; scheduleSave(); scanNames(); renderSide(); renderRibbons(); } };
-  b.querySelector('[data-del]').onclick=async()=>{ if(!await ask(`Remove the card for ${nm.name}? Your notes on it will be gone.`,'Remove')) return; const p=P(); p.names=p.names.filter(x=>x.id!==nm.id); p.names.forEach(o=>{ o.links=(o.links||[]).filter(x=>x!==nm.id); }); closeCard(nm.id); scheduleSave(); scanNames(); renderRibbons(); };
+  b.querySelector('[data-del]').onclick=async()=>{ if(!await ask(ufChar(nm)?`Remove the card for ${nm.name}? Your notes on it will be gone here. In Unfurl, ${nm.name} stays.`:`Remove the card for ${nm.name}? Your notes on it will be gone.`,'Remove')) return; const p=P(); ufForget(nm,p); p.names=p.names.filter(x=>x.id!==nm.id); p.names.forEach(o=>{ o.links=(o.links||[]).filter(x=>x!==nm.id); }); closeCard(nm.id); scheduleSave(); scanNames(); renderRibbons(); };
   return b;
 }
 
@@ -1685,12 +1705,14 @@ function renderView(folioView, body){
     h+=`<h3>Clippings</h3><p class="quote">Look at how much you have figured out about the story, and how solid the draft is becoming.</p>`;
     h+=`<p class="intro">${w?`${fmt(w)} words you wrote to find the story. They don't count in your manuscript, but they do count in the work you've done.`:'Select some text and choose To clippings. It leaves your manuscript but stays safe here, with its date.'}</p>`;
     p.knip.forEach(k=>{
-      const ex=k.text.split(/\s+/).slice(0,40).join(' ')+(k.words>40?'…':'');
-      h+=`<div class="item"><div class="meta">${niceDate(k.date)}, from your ${k.from}, ${fmt(k.words)} words</div><p>${esc(ex)}</p><div class="row"><button class="fbtn" data-copy="${k.id}">Copy</button></div></div>`;
+      const open=knipOpen.has(k.id), long=k.words>40;
+      const ex=k.text.split(/\s+/).slice(0,40).join(' ')+(long?'…':'');
+      const full=k.html||k.text.split(/\n{1,}/).filter(x=>x.trim()).map(x=>`<p>${esc(x)}</p>`).join('');
+      h+=`<div class="item kitem${open?' open':''}" data-kitem="${k.id}"><div class="meta">${niceDate(k.date)}, from your ${k.from}, ${fmt(k.words)} words</div>${open?`<div class="kfull">${full}</div>`:`<p class="kex" ${long?`data-kread="${k.id}" role="button" tabindex="0" title="Read all of it"`:''}>${esc(ex)}</p>`}<div class="row">${long?`<button class="fbtn strong" data-kread="${k.id}" aria-expanded="${open}">${open?'Fold up':'Read all'}</button>`:''}<button class="fbtn" data-copy="${k.id}">Copy</button></div></div>`;
     });
   }
   if(folioView==='names'){
-    h+=`<h3>Names</h3><p class="intro">Names found in your text. Sort them with one tap; every paragraph they appear in then gathers on their card. Double-tap a name in your text to open its card.</p>${dock.open.length?`<div class="row" style="margin-bottom:.4rem"><button class="fbtn strong" id="to-cards">Open cards (${dock.open.length})</button></div>`:''}`;
+    h+=`<h3>Names</h3><p class="intro">Names found in your text. Sort them with one tap; every paragraph they appear in then gathers on their card. Double-tap a name in your text to open its card.</p>${ufNamesRow(p)}${dock.open.length?`<div class="row" style="margin-bottom:.4rem"><button class="fbtn strong" id="to-cards">Open cards (${dock.open.length})</button></div>`:''}`;
     if(candidates.length){
       h+=`<div class="group">New names</div>`;
       candidates.slice(0,40).forEach(([w,c],i)=>{
@@ -1757,6 +1779,7 @@ function renderView(folioView, body){
   if(['later','feel','checks','today','book','trypov'].includes(folioView)){ if(folioView==='later') pruneLater(); h+=extraView(folioView,p); }
   body.innerHTML=h;
   body.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>jumpTo(+b.dataset.jump));
+  body.querySelectorAll('[data-kread]').forEach(b=>b.onclick=()=>{ const id=b.dataset.kread, was=knipOpen.has(id); was?knipOpen.delete(id):knipOpen.add(id); renderSide(); const it=document.querySelector(`[data-kitem="${id}"]`); if(it) it.scrollIntoView({block:was?'nearest':'start',behavior:'smooth'}); });
   body.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{ const k=P().knip.find(x=>x.id===b.dataset.copy); try{ await navigator.clipboard.writeText(k.text); toast('Copied'); }catch(e){ toast('Copying does not work in this browser'); } });
   body.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addName(candidates[+b.dataset.add][0], b.dataset.type));
   body.querySelectorAll('[data-same]').forEach(s=>s.onchange=()=>{ const w=candidates[+s.dataset.same][0], p=P(), n=p.names.find(x=>x.id===s.value); if(!n) return; n.aliases=[...(n.aliases||[]),w]; p.manual=p.manual.filter(x=>x!==w); scheduleSave(); scanNames(); toast(`${w} now belongs to ${n.name}`); });
@@ -1766,6 +1789,7 @@ function renderView(folioView, body){
   body.querySelectorAll('[data-ps]').forEach(b=>b.onclick=()=>{ P().paraStyle=b.dataset.ps; applyParaStyle(); scheduleSave(); renderFolio(); });
   body.querySelectorAll('[data-pal]').forEach(b=>b.onclick=()=>{ P().palette=b.dataset.pal; applyPalette(); scheduleSave(); renderFolio(); });
   const un=body.querySelector('#unignore'); if(un) un.onclick=()=>{ P().ignored=[]; scheduleSave(); scanNames(); };
+  ufNamesBind(body);
   body.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{ syncDom(); S.activeId=b.dataset.open; loadProject(); saveNow(); renderFolio(); });
   body.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{ const q=S.projects.find(x=>x.id===b.dataset.del); if(!await ask(`Delete "${q.title}"? Make a backup first if you want to keep it.`,'Delete')) return; syncDom(); (S.gone=S.gone||{})[q.id]=Date.now(); S.savedAt=Date.now(); sbChanged=true; S.projects=S.projects.filter(x=>x.id!==q.id); if(S.activeId===q.id) S.activeId=S.projects[0].id; loadProject(); saveNow(); renderFolio(); });
   const np=body.querySelector('#new-proj'); if(np) np.onclick=()=>{ syncDom(); const q=newProject(); q.u=Date.now(); sbChanged=true; S.projects.push(q); S.activeId=q.id; loadProject(); saveNow(); closeFolio(); $('#title').focus(); $('#title').select(); };
@@ -2160,6 +2184,7 @@ async function dbxSyncAll(){
     if(dbxDirtyS){ dbxDirtyS=false; syncDom(); S.savedAt=S.savedAt||Date.now(); DBX.remoteWords=stateWords(S); await dbxPushOne(SFILE,'s',()=>JSON.stringify(S),async()=>{ await dbxPullS(); }); }
     if(dbxDirtyL && LOG){ dbxDirtyL=false; await dbxPushOne(LFILE,'l',()=>JSON.stringify(LOG.exportState()),dbxPullL); }
     try{ await deskBridge(); }catch(e){}
+    try{ await ufSync(); }catch(e){}
     DBX.at=Date.now(); DBX.synced=Date.now(); dbxSave(); setDbx('Synced'); if(LOG) LOG.setSync('synced');
     if(store.mode!=='memory') $('#saved').textContent='Synced';
   }catch(e){ if(e&&e.stopped){ setDbx('Syncing is paused. Nothing was overwritten. Tap Sync now when you are ready'); if(LOG) LOG.setSync('local'); DBX.busy=false; DBX.had=null; return; } setDbx(dbxErr(e)); if(e&&e.auth){ DBX.token=''; } if(DBX.had){ dbxDirtyS=dbxDirtyS||DBX.had[0]; dbxDirtyL=dbxDirtyL||DBX.had[1]; } }
@@ -2204,7 +2229,7 @@ async function dbxCheck(){
 setInterval(dbxCheck,45000);
 document.addEventListener('visibilitychange',()=>{ if(!dbxOn()) return; if(document.visibilityState==='visible') dbxCheck(); else { Promise.resolve(saveNow()).then(()=>{ if(dbxDirtyS||dbxDirtyL){ clearTimeout(dbxT); dbxT=null; dbxLastPush=Date.now(); dbxSyncAll(); } }); } });
 window.addEventListener('online',()=>dbxCheck());
-async function dbxStartup(){ dbxLoad(); if(!dbxOn()){ dbxPrep(); return; } try{ await Promise.race([dbxSyncAll(), new Promise(r=>setTimeout(r,8000))]); }catch(e){} }
+async function dbxStartup(){ await ufStartup(); dbxLoad(); if(!dbxOn()){ dbxPrep(); return; } try{ await Promise.race([dbxSyncAll(), new Promise(r=>setTimeout(r,8000))]); }catch(e){} }
 
 function dropboxSection(){
   let h=`<div class="group">Dropbox</div>`;
@@ -4054,7 +4079,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-11-17a';
+const APP_VERSION='2026-11-24a';
 /* ================= TEASERS: lines you might share before the book is out ================= */
 function selectionPieces(range){
   const box=document.createElement('div'); box.appendChild(range.cloneContents());
@@ -4151,6 +4176,269 @@ function bindTeasers(body){
   body.querySelectorAll('[data-tused]').forEach(b=>b.onclick=()=>{ const x=TZ(p).find(y=>y.id===b.dataset.tused); if(!x) return; x.used=!x.used; x.usedAt=x.used?new Date().toISOString():null; p.u=Date.now(); scheduleSave(); renderTabs(); renderSide(); });
   body.querySelectorAll('[data-tdel]').forEach(b=>b.onclick=async()=>{ if(!await ask('Remove this teaser? The text in your draft stays as it is.','Remove')) return; const id=b.dataset.tdel; p.teasers=TZ(p).filter(y=>y.id!==id); (p.tzGone=p.tzGone||{})[id]=Date.now(); p.u=Date.now(); scheduleSave(); renderTabs(); renderSide(); markTeasers(); });
 }
+
+/* ===== Unfurl shared sync core: the same code lives in Unfurl and in TheWritersDesk =====
+   Both apps read and write one file in your Dropbox app folder. Every change gets a time stamp,
+   so two devices (or two apps) can each change things and nothing gets lost. */
+const UF_FILE = '/unfurl.json', UF_KEY = 'usi47rshjmnhaap';
+const UF_COLS = ['worlds', 'series', 'books', 'notes', 'links'];
+const ufRep = (k, v) => (typeof v === 'string' && v.length > 3000 && v.startsWith('data:')) ? 'D' + v.length + v.slice(-48) : v;
+function ufClean(o, skip) { const c = {}; for (const k in o) if (!skip.includes(k)) c[k] = o[k]; return JSON.stringify(c, ufRep); }
+function ufSig(st) {
+  const s = {};
+  for (const k of UF_COLS) for (const x of st[k] || []) s[x.id] = ufClean(x, ['u']);
+  for (const c of st.chars || []) {
+    s[c.id] = ufClean(c, ['u', 'pu', 'updated', 'blocks', 'hist']);
+    for (const b of c.blocks || []) s['b:' + b.id] = ufClean(b, ['u']);
+  }
+  const set = Object.assign({}, st.settings || {}); delete set.dropboxKey; delete set.lastBackup;
+  s.__set = JSON.stringify(set);
+  return s;
+}
+/* compare with the last known picture and stamp whatever changed; gone things get a tombstone */
+function ufStamp(st, old) {
+  const sig = ufSig(st); if (!old) return { sig, changed: false };
+  const t = Date.now(); st.gone = st.gone || {}; let ch = false;
+  for (const k of UF_COLS) for (const x of st[k] || []) if (old[x.id] !== sig[x.id]) { x.u = t; ch = true; }
+  for (const c of st.chars || []) {
+    if (old[c.id] !== sig[c.id]) { c.pu = t; ch = true; }
+    for (const b of c.blocks || []) if (old['b:' + b.id] !== sig['b:' + b.id]) { b.u = t; ch = true; }
+  }
+  for (const id in old) if (id !== '__set' && !(id in sig)) { st.gone[id.replace(/^b:/, '')] = t; ch = true; }
+  if (old.__set !== sig.__set) { st.setU = t; ch = true; }
+  if (ch) st.su = t;
+  return { sig, changed: ch };
+}
+const ufPick = (a, b) => !a ? b : !b ? a : ((b.u || 0) > (a.u || 0) ? b : a);
+const ufLast = c => Math.max(c.pu || 0, ...(c.blocks || []).map(b => b.u || 0));
+/* A is this device, B is the other copy. Newest stamp wins per item, per character block. */
+function ufMerge(A, B) {
+  A = A || {}; B = B || {};
+  const gone = Object.assign({}, B.gone || {}); for (const [k, v] of Object.entries(A.gone || {})) if (v > (gone[k] || 0)) gone[k] = v;
+  const alive = (x, t) => !(gone[x.id] && gone[x.id] >= (t || 0));
+  const out = { v: A.v || B.v || 1, gone, su: Math.max(A.su || 0, B.su || 0), setU: Math.max(A.setU || 0, B.setU || 0) };
+  const setSrc = (B.setU || 0) > (A.setU || 0) ? B : A;
+  out.settings = Object.assign({}, (setSrc.settings || A.settings || B.settings || {}));
+  if (A.settings) { out.settings.dropboxKey = A.settings.dropboxKey; out.settings.lastBackup = A.settings.lastBackup; }
+  for (const k of UF_COLS) {
+    const m = new Map(); for (const x of A[k] || []) m.set(x.id, x);
+    for (const x of B[k] || []) m.set(x.id, ufPick(m.get(x.id), x));
+    out[k] = [...m.values()].filter(x => alive(x, x.u));
+  }
+  const cm = new Map(); for (const c of A.chars || []) cm.set(c.id, c);
+  for (const b of B.chars || []) {
+    const a = cm.get(b.id); if (!a) { cm.set(b.id, b); continue; }
+    const base = (b.pu || 0) > (a.pu || 0) ? b : a, other = base === a ? b : a;
+    const c = Object.assign({}, base);
+    const bm = new Map(); for (const x of base.blocks || []) bm.set(x.id, x);
+    for (const x of other.blocks || []) bm.set(x.id, ufPick(bm.get(x.id), x));
+    c.blocks = [...bm.values()].filter(x => alive(x, x.u));
+    const hm = new Map(); for (const h of [...(other.hist || []), ...(base.hist || [])]) hm.set(h.id, h); c.hist = [...hm.values()];
+    c.updated = Math.max(a.updated || 0, b.updated || 0);
+    cm.set(b.id, c);
+  }
+  out.chars = [...cm.values()].filter(c => alive(c, ufLast(c)));
+  return JSON.parse(JSON.stringify(out));
+}
+/* what goes into Dropbox: never the settings that belong to one device */
+function ufStrip(st) { const s = JSON.parse(JSON.stringify(st)); if (s.settings) { delete s.settings.dropboxKey; delete s.settings.lastBackup; } return s; }
+function ufPayload(st, app) { return JSON.stringify({ app: 'Unfurl', v: 2, by: app, at: Date.now(), state: ufStrip(st) }); }
+const ufSame = (x, y) => JSON.stringify(ufStrip(x)) === JSON.stringify(ufStrip(y));
+
+/* ================= UNFURL: one character card, in TheWritersDesk and in Unfurl =================
+   Both apps share /unfurl.json in your Dropbox app folder. The desk never makes that file itself:
+   it waits until Unfurl has shared once, so nothing gets doubled. */
+const UF_APP='https://serena563.github.io/Unfurl/';
+const UF_MAP={k_good:['twd_k_good','What {they} {are} good at'],k_weak:['twd_k_weak','Where {they} {are} weak'],k_cares:['twd_k_cares','What {they} care{s} about'],
+  k_drives:['twd_k_drives','What drives {them}'],k_moods:['twd_k_moods','Moods'],k_been:['sb_through','What {they}{has} been through'],k_become:['twd_k_become','Who {they} will become'],
+  appearance:['twd_appearance','Appearance'],personality:['sb_who','Who {they} {are}'],background:['sb_from','Where {they} come{s} from'],notes:['twd_notes','Notes']};
+const UF_PRON={she:{they:'she',them:'her',their:'her',s:'s',es:'es',ies:'ies',has:"'s",are:'is',have:'has'},he:{they:'he',them:'him',their:'his',s:'s',es:'es',ies:'ies',has:"'s",are:'is',have:'has'},
+  they:{they:'they',them:'them',their:'their',s:'',es:'',ies:'y',has:"'ve",are:'are',have:'have'}};
+const ufT=(t,p)=>{ const f=UF_PRON[p]||UF_PRON.they; const s=String(t||'').replace(/\{(\w+)\}/g,(m,k)=>f[k]??m); return s.charAt(0).toUpperCase()+s.slice(1); };
+const ufNorm=s=>String(s||'').trim().toLowerCase().replace(/\s+/g,' ');
+let UFS=null;
+const UF={sig:null,rev:null,seen:false,dirty:false,busy:false,st:null,t:null,lt:null};
+try{ const x=JSON.parse(localStorage.getItem('sb-unfurl')||'{}'); UF.rev=x.rev||null; UF.seen=!!x.seen; }catch(e){}
+function ufMeta(){ try{ localStorage.setItem('sb-unfurl',JSON.stringify({rev:UF.rev,seen:UF.seen})); }catch(e){} }
+function ufNormalize(s){ for(const k of ['worlds','series','books','chars','notes','links']) if(!Array.isArray(s[k])) s[k]=[]; s.settings=s.settings||{}; s.gone=s.gone||{};
+  for(const c of s.chars){ c.books=c.books||[]; c.images=c.images||[]; c.blocks=c.blocks||[]; c.hist=c.hist||[]; c.pron=c.pron||'they'; for(const b of c.blocks){ b.lines=b.lines||[]; b.type=b.type||'text'; if(b.text==null) b.text=''; } } return s; }
+const ufReady=()=>!!(UFS && UF.seen && dbxOn());
+const ufChar=nm=>UFS && nm.uf ? UFS.chars.find(c=>c.id===nm.uf)||null : null;
+function ufMark(){ if(!UFS) return false; const r=ufStamp(UFS,UF.sig); UF.sig=r.sig; if(r.changed) UF.dirty=true; return r.changed; }
+function ufSaveLocal(){ clearTimeout(UF.st); UF.st=setTimeout(()=>{ if(UFS) store.set('unfurl',UFS); },700); }
+function ufSoon(ms){ if(!dbxOn()) return; clearTimeout(UF.t); UF.t=setTimeout(()=>ufSync(),ms||5000); }
+function ufTouch(){ if(ufMark()){ ufSaveLocal(); ufSoon(); } }
+function ufLinkSoon(){ if(!ufReady()) return; clearTimeout(UF.lt); UF.lt=setTimeout(()=>{ if(ufLink()) ufSoon(); },1500); }
+
+function ufBookFor(p){
+  if(!UFS || p.ufNone) return null;
+  let b=p.ufBook && UFS.books.find(x=>x.id===p.ufBook);
+  if(!b && p.ufBook && UFS.gone[p.ufBook]){ p.ufBook=null; p.ufNone=true; return null; }
+  if(!b){ b=UFS.books.find(x=>ufNorm(x.title)===ufNorm(p.title)); if(b) p.ufBook=b.id; }
+  return b||null;
+}
+function ufNewBlock(c,sid,tpl,text){ const b={id:uid(),sid,tpl,name:ufT(tpl,c.pron),type:'text',text:text||'',lines:[]}; c.blocks.push(b); return b; }
+function ufNewChar(nm,b){
+  const sb=(UFS.settings&&UFS.settings.startBlocks)||[];
+  const c={id:uid(),name:nm.name,pron:'they',books:[b.id],help:false,images:[],hue:UFS.chars.length%6,created:Date.now(),updated:Date.now(),hist:[],
+    blocks:sb.map(x=>({id:uid(),sid:x.id,tpl:x.tpl,name:ufT(x.tpl,'they'),type:x.type,text:'',lines:(x.lines||[]).map(l=>({id:uid(),label:l.label,value:'',pin:!!l.pin}))}))};
+  UFS.chars.push(c); return c;
+}
+function ufMatch(nm,b,taken){
+  const forms=[nm.name,...(nm.aliases||[])].map(ufNorm).filter(Boolean);
+  const pool=UFS.chars.filter(c=>!taken.has(c.id) && c.name.trim());
+  const same=c=>forms.includes(ufNorm(c.name)), first=c=>forms.includes(ufNorm(c.name).split(' ')[0]) || forms.some(f=>f.split(' ')[0]===ufNorm(c.name));
+  const inB=pool.filter(c=>c.books.includes(b.id));
+  const series=b.series?pool.filter(c=>c.books.some(id=>{ const o=UFS.books.find(x=>x.id===id); return o && o.series===b.series; })):[];
+  const loose=pool.filter(c=>!c.books.length);
+  return inB.find(same)||inB.find(first)||series.find(same)||loose.find(same)||null;
+}
+/* one character: name and answers kept the same on both sides */
+function ufFill(nm,c){
+  let t=false;
+  if(nm.ufName===undefined||nm.ufMine===undefined){ nm.ufName=c.name; nm.ufMine=nm.name; t=true; }
+  if(c.name!==nm.ufName){
+    if(c.name.trim() && ufNorm(nm.ufName)===ufNorm(nm.name) && c.name.trim()!==nm.name){ const old=nm.name; nm.name=c.name.trim();
+      if(ufNorm(old)!==ufNorm(nm.name) && !(nm.aliases||[]).some(a=>ufNorm(a)===ufNorm(old))) nm.aliases=[...(nm.aliases||[]),old]; }
+    nm.ufName=c.name; nm.ufMine=nm.name; t=true;
+  } else if(nm.name!==nm.ufMine){
+    if(ufNorm(c.name)===ufNorm(nm.ufMine)){ c.name=nm.name; nm.ufName=c.name; }
+    nm.ufMine=nm.name; t=true;
+  }
+  nm.ufHad=nm.ufHad||{};
+  for(const [key,[sid,tpl]] of Object.entries(UF_MAP)){
+    let b=c.blocks.find(x=>x.sid===sid && x.type==='text'); const mine=nm.fields[key]||'';
+    if(b){
+      if(!nm.ufHad[key]){ nm.ufHad[key]=b.id; t=true; const v=(b.text||'').trim(); if(mine.trim() && v!==mine.trim()){ b.text=v?b.text.replace(/\s+$/,'')+'\n\n'+mine:mine; } }
+      else if(nm.ufHad[key]!==b.id){ nm.ufHad[key]=b.id; t=true; }
+      if((b.text||'')!==mine){ nm.fields[key]=b.text||''; t=true; }
+    } else if(nm.ufHad[key] && UFS.gone[nm.ufHad[key]]){ delete nm.ufHad[key]; nm.fields[key]=''; t=true; }
+    else if(mine.trim()){ b=ufNewBlock(c,sid,tpl,mine); nm.ufHad[key]=b.id; t=true; }
+  }
+  return t;
+}
+/* every story: find its book in Unfurl, and keep the characters paired */
+function ufLink(){
+  if(!ufReady()) return false;
+  ufMark(); let desk=false;
+  for(const p of S.projects){
+    const b=ufBookFor(p), taken=new Set();
+    for(const nm of p.names){
+      if(nm.type!=='character'){ if(nm.uf){ const c=ufChar(nm); if(c && b) c.books=c.books.filter(x=>x!==b.id); nm.uf=null; desk=true; } continue; }
+      let c=ufChar(nm);
+      if(!c && nm.uf){ if(UFS.gone[nm.uf]){ nm.uf=null; nm.ufOff=true; desk=true; continue; } }
+      if(c){ taken.add(c.id); if(b && !c.books.includes(b.id)) c.books.push(b.id); if(ufFill(nm,c)) desk=true; }
+    }
+    if(!b) continue;
+    for(const nm of p.names){
+      if(nm.type!=='character' || nm.uf || nm.ufOff) continue;
+      const c=ufMatch(nm,b,taken)||ufNewChar(nm,b);
+      nm.uf=c.id; taken.add(c.id); if(!c.books.includes(b.id)) c.books.push(b.id); ufFill(nm,c); desk=true;
+    }
+    for(const c of UFS.chars){
+      if(!c.books.includes(b.id) || taken.has(c.id) || !c.name.trim()) continue;
+      let nm=p.names.find(n=>n.type==='character' && !n.uf && [n.name,...(n.aliases||[])].some(a=>ufNorm(a)===ufNorm(c.name)));
+      if(nm) nm.ufOff=false;
+      else { if(p.names.some(n=>[n.name,...(n.aliases||[])].some(a=>ufNorm(a)===ufNorm(c.name)))) continue;
+        const now=new Date().toISOString(); nm={id:uid(),name:c.name.trim(),type:'character',aliases:[],links:[],first:now,added:now,fields:{}}; p.names.push(nm); }
+      nm.uf=c.id; taken.add(c.id); ufFill(nm,c); desk=true;
+    }
+  }
+  const uf=ufMark();
+  if(uf) ufSaveLocal();
+  if(desk){ scheduleSave(); try{ if(sideView==='names' && !editingCard()) renderSide(); renderTabs(); renderRibbons(); }catch(e){} }
+  return uf;
+}
+function ufSetField(nm,key,val){
+  if(!(key in UF_MAP) || !ufReady()) return; const c=ufChar(nm); if(!c) return;
+  const [sid,tpl]=UF_MAP[key]; let b=c.blocks.find(x=>x.sid===sid && x.type==='text');
+  if(!b){ if(!val.trim()) return; b=ufNewBlock(c,sid,tpl,''); }
+  (nm.ufHad=nm.ufHad||{})[key]=b.id; b.text=val; ufTouch();
+}
+function ufForget(nm,p){ const c=ufChar(nm), b=p&&ufBookFor(p); if(c && b){ c.books=c.books.filter(x=>x!==b.id); ufTouch(); } }
+
+async function ufSync(){
+  if(!dbxOn() || UF.busy || DBX.stopped) return; UF.busy=true;
+  try{
+    if(UFS) ufMark();
+    for(let i=0;i<4;i++){
+      const rv=await dbxRev(UF_FILE);
+      if(!rv){ UF.seen=false; UF.rev=null; break; }
+      UF.seen=true;
+      if(rv!==UF.rev || !UFS){
+        const f=await dbxDown(UF_FILE);
+        if(f){ let remote=null; try{ const j=JSON.parse(f.text); remote=j&&j.state?j.state:j; }catch(e){}
+          if(remote && Array.isArray(remote.chars)){ ufNormalize(remote); if(UFS) ufMark(); UFS=ufNormalize(UFS?ufMerge(UFS,remote):remote); UF.sig=ufSig(UFS); ufSaveLocal(); if(!ufSame(UFS,remote)) UF.dirty=true; }
+          UF.rev=f.rev; }
+      }
+      ufLink();
+      if(!UF.dirty) break;
+      try{ const m=await dbxUp(UF_FILE,ufPayload(UFS,'TheWritersDesk'),UF.rev); UF.rev=m.rev; UF.dirty=false; break; }catch(e){ if(!e.conflict) throw e; }
+    }
+  }catch(e){ if(UF.dirty) ufSoon(30000); }
+  ufMeta(); UF.busy=false;
+}
+setInterval(()=>{ if(dbxOn() && document.visibilityState==='visible') ufSync(); },60000);
+document.addEventListener('visibilitychange',()=>{ if(dbxOn() && document.visibilityState==='visible') setTimeout(ufSync,1500); });
+
+/* ---- on the card ---- */
+function ufCardHTML(nm){
+  if(nm.type!=='character' || !UFS || !UF.seen) return '';
+  const c=ufChar(nm);
+  if(!c){
+    if(nm.ufOff) return `<div class="ufbox"><p class="sub">${esc(nm.name)} is no longer in Unfurl. Everything on this card stays here.</p><button class="mini" data-ufagain>Share with Unfurl again</button></div>`;
+    if(!ufBookFor(P())) return `<div class="ufbox"><p class="sub">Choose which book in Unfurl belongs to this story, under All names, and this card is shared with Unfurl.</p></div>`;
+    return '';
+  }
+  const mapped=new Set(Object.values(UF_MAP).map(x=>x[0]));
+  const extra=c.blocks.filter(b=>!(mapped.has(b.sid) && b.type==='text'));
+  const imgs=c.images.slice(0,3).map(im=>`<span class="ufimg" style="background-image:url('${im.data}')"></span>`).join('');
+  const op=cardOpen[nm.id]||(cardOpen[nm.id]={});
+  let h=`<div class="ufbox"><div class="ufhead">${imgs}<span class="uft">Shared with Unfurl</span><a class="mini" href="${UF_APP}#c=${esc(c.id)}" target="_blank" rel="noopener">Open in Unfurl</a></div>`;
+  if(extra.length){
+    h+=`<details class="sect" data-sect="uf" ${op.uf!==false?'open':''}><summary>From Unfurl</summary>`;
+    for(const b of extra){
+      if(b.type==='list'){ h+=`<label>${esc(b.name)}</label><div class="uflist">${b.lines.map(l=>`<div class="ufl"><span>${esc(l.label)}</span><input data-ufl="${b.id}:${l.id}" value="${esc(l.value||'')}" aria-label="${esc(l.label)}"></div>`).join('')}</div>`; }
+      else h+=`<label for="ufb-${b.id}">${esc(b.name)}</label><textarea id="ufb-${b.id}" data-ufb="${b.id}" rows="2">${esc(b.text||'')}</textarea>`;
+    }
+    h+=`</details>`;
+  }
+  return h+`</div>`;
+}
+function ufCardBind(root,nm){
+  const blk=id=>{ const c=ufChar(nm); return c&&c.blocks.find(x=>x.id===id); };
+  root.querySelectorAll('[data-ufb]').forEach(t=>t.addEventListener('input',()=>{ const b=blk(t.dataset.ufb); if(b){ b.text=t.value; ufTouch(); } }));
+  root.querySelectorAll('[data-ufl]').forEach(t=>t.addEventListener('input',()=>{ const [bid,lid]=t.dataset.ufl.split(':'); const b=blk(bid), l=b&&b.lines.find(x=>x.id===lid); if(l){ l.value=t.value; ufTouch(); } }));
+  const ag=root.querySelector('[data-ufagain]'); if(ag) ag.onclick=()=>{ nm.ufOff=false; scheduleSave(); ufLink(); ufSoon(1000); renderSide(); };
+}
+/* ---- in the list of names: which Unfurl book is this story? ---- */
+function ufNamesRow(p){
+  if(!dbxOn()) return '';
+  if(!UFS || !UF.seen) return `<p class="more ufnote">Your character cards can be shared with Unfurl. Open Unfurl, connect it to Dropbox once, and they find each other here.</p>`;
+  const b=ufBookFor(p), books=[...UFS.books].sort((x,y)=>String(x.title).localeCompare(String(y.title)));
+  const has=p.names.some(n=>n.type==='character');
+  let h=`<div class="ufrow"><label for="uf-book">In Unfurl as</label><select id="uf-book">${!b?`<option value="">${p.ufNone?'Not shared':'Choose a book…'}</option>`:''}${books.map(x=>`<option value="${esc(x.id)}" ${b&&b.id===x.id?'selected':''}>${esc(x.title||'Untitled')}</option>`).join('')}<option value="new">New book in Unfurl: ${esc(p.title)}</option>${b?`<option value="none">Don't share this story</option>`:''}</select></div>`;
+  if(!b && !p.ufNone) h+=`<p class="more ufnote">${has?'Pick the book in Unfurl that belongs to this story. Your characters are then shared both ways: what you write here shows up in Unfurl, and the other way round.':'Pick the book in Unfurl that belongs to this story, and its characters come here.'}</p>`;
+  return h;
+}
+function ufNamesBind(body){
+  const sel=body.querySelector('#uf-book'); if(!sel) return;
+  sel.onchange=()=>{
+    const p=P(), v=sel.value; if(!v) return; ufMark();
+    const old=ufBookFor(p); let nb=null;
+    if(v==='none'){ p.ufNone=true; p.ufBook=null; for(const nm of p.names){ const c=ufChar(nm); if(c&&old) c.books=c.books.filter(x=>x!==old.id); nm.uf=null; } }
+    else {
+      if(v==='new'){ nb={id:uid(),title:p.title,series:null,part:1,world:null,theme:'Plum',color:null,cover:null,created:Date.now(),byDesk:true}; UFS.books.push(nb); }
+      else nb=UFS.books.find(x=>x.id===v);
+      if(!nb) return; p.ufNone=false; p.ufBook=nb.id;
+      if(old && old.id!==nb.id) for(const nm of p.names){ const c=ufChar(nm); if(c){ c.books=c.books.filter(x=>x!==old.id); if(!c.books.includes(nb.id)) c.books.push(nb.id); } }
+    }
+    if(old && old.byDesk && (!nb || old.id!==nb.id) && !UFS.chars.some(c=>c.books.includes(old.id))) UFS.books=UFS.books.filter(x=>x!==old);
+    scheduleSave(); ufLink(); ufTouch(); ufSoon(800); renderSide();
+    toast(v==='none'?'This story is no longer shared with Unfurl. Your cards stay as they are':`Shared with ${nb.title} in Unfurl`);
+  };
+}
+async function ufStartup(){ try{ const x=await store.get('unfurl'); if(x && Array.isArray(x.chars)){ UFS=ufNormalize(x); UF.sig=ufSig(UFS); } }catch(e){} }
 
 /* ---------------- start ---------------- */
 (async function start(){
