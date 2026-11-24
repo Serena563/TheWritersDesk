@@ -2208,6 +2208,8 @@ function deskSummary(){
   for(const [ds,l] of Object.entries(S.wins||{})){ if(ds<from||!(l||[]).length) continue; day(ds).wins=l.length; }
   return {app:'TheWritersDesk',v:1,days};
 }
+function latelyToLog(){ try{ if(LOG&&LOG.lately&&LATELY&&LATELY.days) LOG.lately(LATELY.days); }catch(e){} }
+setTimeout(latelyToLog,4000);
 async function deskBridge(){
   if(!dbxOn()) return;
   const text=JSON.stringify(deskSummary());
@@ -2216,7 +2218,7 @@ async function deskBridge(){
     if(r.ok) DBX.deskLast=text;
   }
   const f=await dbxDown(LATELY_FILE);
-  if(f){ try{ const x=JSON.parse(f.text); if(!LATELY||x.at!==LATELY.at){ LATELY=x; localStorage.setItem('sb-lately',f.text); try{ if(sideView==='today') renderSide(); }catch(e){} } }catch(e){} }
+  if(f){ try{ const x=JSON.parse(f.text); if(!LATELY||x.at!==LATELY.at){ LATELY=x; localStorage.setItem('sb-lately',f.text); latelyToLog(); try{ if(sideView==='today') renderSide(); }catch(e){} } }catch(e){} }
 }
 setInterval(()=>{ if(dbxOn()&&document.visibilityState==='visible'&&!DBX.busy) deskBridge().catch(()=>{}); },3*60000);
 document.addEventListener('visibilitychange',()=>{ if(dbxOn()&&document.visibilityState==='visible') setTimeout(()=>deskBridge().catch(()=>{}),2500); });
@@ -3036,6 +3038,7 @@ function allDays(){return Object.values(S.days).sort((a,b)=>a.date<b.date?-1:1)}
 const TABS=['today','week','insights','books','settings'];
 function render(){
   pendingRender=false;
+  try{ autoLog(); }catch(e){}
   
   $('#apptitle').textContent=t('app');
   $('#lang').innerHTML=['en','nl'].map(l=>`<button data-act="lang" data-v="${l}" class="${L()===l?'on':''}" aria-pressed="${L()===l}">${l.toUpperCase()}</button>`).join('');
@@ -3103,7 +3106,8 @@ function unlogged(day){
     const covered=ts=>sp.some(([a,b])=>ts>=a-60000&&ts<b+60000);
     let seg=null; const segs=[];
     for(const [m,v] of mins){ const ts=t0+m*60000; if(covered(ts)) { seg=null; continue; }
-      if(!seg || m-seg.to>20 || sp.some(([a])=>a>t0+seg.to*60000&&a<ts)){ seg={pid:p.id,from:m,to:m,words:0}; segs.push(seg); }
+      if(!seg || m-seg.to>20 || sp.some(([a])=>a>t0+seg.to*60000&&a<ts)){ seg={pid:p.id,from:m,to:m,words:0,act:0,lastM:null}; segs.push(seg); }
+      if(seg.lastM!=null){ const g=m-seg.lastM-1; if(g<=5) seg.act+=g; } seg.act+=1; seg.lastM=m;
       seg.to=m; seg.words+=v; }
     segs.filter(s=>s.words>=20).forEach(s=>out.push(s));
   }
@@ -3120,17 +3124,54 @@ function unlogged(day){
   }
   return out.slice(0,4);
 }
+const durTxt=m=>{ m=Math.max(1,Math.round(m||0)); const nl=L()==='nl', h=Math.floor(m/60), r=m%60; return h?`${h} ${nl?'uur':(h>1?'hours':'hour')}${r?` ${r} min`:''}`:`${r} min`; };
+const segOpen=(day,u)=>{ if(day.date!==todayISO()||u.loose) return false; const now=new Date(); return now.getHours()*60+now.getMinutes()-u.to<=20; };
 function rUnlogged(day){
   const us=unlogged(day); if(!us.length) return '';
   const nl=L()==='nl';
-  return `<section class="panel unlog"><h3>${nl?'Geschreven zonder sprint':'Written without a sprint'}</h3>${us.map((u,i)=>`<div class="unrow"><p>${(u.from==null||u.to==null)?(nl?`Je schreef vandaag <b>${num(u.words)}</b> woorden voor ${esc(proj(u.pid).title)} die nog niet in een sprint staan. Vul eerst bij Dag begonnen in hoe laat je begon.`:`You wrote <b>${num(u.words)}</b> words for ${esc(proj(u.pid).title)} today that are not in a sprint yet. Fill in Day started first, so the sprint gets the right time.`):(nl?`Je schreef <b>${num(u.words)}</b> woorden voor ${esc(proj(u.pid).title)} tussen ${hmMin(u.from)} en ${hmMin(u.to+1)}.`:`You wrote <b>${num(u.words)}</b> words for ${esc(proj(u.pid).title)} between ${hmMin(u.from)} and ${hmMin(u.to+1)}.`)}</p>${(u.from==null||u.to==null)?'':`<button class="btn small" data-act="add-unlogged" data-i="${i}">${nl?'Toevoegen als sprint':'Add as a sprint'}</button>`}</div>`).join('')}</section>`;
+  const row=(u,i)=>{
+    const title=esc(proj(u.pid).title);
+    if(u.from==null||u.to==null) return `<div class="unrow"><p>${nl?`Je schreef vandaag <b>${num(u.words)}</b> woorden voor ${title} die nog niet in je log staan. Vul eerst bij Dag begonnen in hoe laat je begon.`:`You wrote <b>${num(u.words)}</b> words for ${title} today that are not in your log yet. Fill in Day started first, so they get the right time.`}</p></div>`;
+    const span=u.to+1-u.from, act=u.loose?null:Math.min(span,u.act||span), open=segOpen(day,u);
+    const when=open?(nl?`sinds ${hmMin(u.from)}`:`since ${hmMin(u.from)}`):(nl?`tussen ${hmMin(u.from)} en ${hmMin(u.to+1)}`:`between ${hmMin(u.from)} and ${hmMin(u.to+1)}`);
+    let p=nl?`Je schreef <b>${num(u.words)}</b> woorden voor ${title} ${when}`:`You wrote <b>${num(u.words)}</b> words for ${title} ${when}`;
+    p+=act!=null?(nl?`: <b>${durTxt(act)}</b> schrijven${act<span?`, pauzes van meer dan 5 minuten niet meegeteld`:''}.`:`: <b>${durTxt(act)}</b> of writing${act<span?`, with breaks over 5 minutes left out`:''}.`):(nl?`, ${durTxt(span)}.`:`, ${durTxt(span)}.`);
+    if(open) p+=nl?` Na 20 minuten niet typen komt het vanzelf in je log.`:` Once you stop typing for 20 minutes, it goes into your log by itself.`;
+    return `<div class="unrow"><p>${p}</p><button class="btn small" data-act="add-unlogged" data-i="${i}">${open?(nl?'Nu toevoegen':'Add now'):(nl?'Toevoegen':'Add to log')}</button></div>`;
+  };
+  return `<section class="panel unlog"><h3>${nl?'Geschreven zonder sprint':'Written without a sprint'}</h3>${us.map(row).join('')}</section>`;
 }
+/* writing without a timer goes into the log by itself, once you have stopped for 20 minutes */
+let autoAt=0;
+function autoLog(force){
+  if(!S||!S.days||!S.settings||(!force&&Date.now()-autoAt<30000)) return 0; autoAt=Date.now();
+  const td=todayISO(); let n=0;
+  for(let i=0;i<21;i++){
+    const ds=addDays(td,-i), had=!!S.days[ds], day=S.days[ds]||newDay(ds);
+    let added=0;
+    for(let guard=0;guard<12;guard++){
+      const u=unlogged(day).find(x=>!x.loose&&x.from!=null&&x.to!=null&&!segOpen(day,x)); if(!u) break;
+      const t0=parseISO(ds).getTime(), span=u.to+1-u.from, act=Math.min(span,u.act||span);
+      const sp={id:'auto-'+u.pid+'-'+ds+'-'+u.from,pid:u.pid,start:t0+u.from*60000,end:t0+(u.to+1)*60000,planned:null,words:u.words,pause:(span-act)*60000,auto:true};
+      if(day.sprints.some(x=>x.id===sp.id)) break;
+      day.sprints.push(sp); added++;
+      if(day.start==null||day.start>sp.start) day.start=sp.start;
+      if(!day.block&&S.settings.show.block) day.block=nextBlock(ds);
+      snapshotProj(day,u.pid);
+    }
+    if(added){ if(!had) S.days[ds]=day; touch(ds); n+=added; }
+  }
+  return n;
+}
+setInterval(()=>{ try{ if(autoLog()) renderSoon(); }catch(e){} },60000);
+setTimeout(()=>{ try{ if(autoLog(true)) renderSoon(); }catch(e){} },6000);
+
 function rSprints(day,st){
   const list=[...day.sprints].filter(s=>s.end).sort((a,b)=>a.start-b.start);
   let rows='';list.forEach((s,i)=>{
     if(i>0){const g=(s.start-list[i-1].end)/60000;if(g>=1)rows+=`<li class="gap">${t('brk')} ${fmtMin(g)}</li>`}
     const p=proj(s.pid);
-    rows+=`<li><button class="sprint-row" data-act="edit-sprint" data-id="${s.id}"><span class="t">${hm(s.start)}–${hm(s.end)}</span><span class="muted">${fmtMin(sprintMin(s))}</span><span class="bk">${esc(p?p.title:'')}</span><span class="w">${s.words==null?`<em>${t('noWords')}</em>`:num(s.words)}</span></button></li>`;
+    rows+=`<li><button class="sprint-row" data-act="edit-sprint" data-id="${s.id}"><span class="t">${hm(s.start)}–${hm(s.end)}</span><span class="muted">${fmtMin(sprintMin(s))}</span><span class="bk">${esc(p?p.title:'')}${s.auto?`<small class="muted"> · ${L()==='nl'?'zonder timer':'no timer'}</small>`:''}</span><span class="w">${s.words==null?`<em>${t('noWords')}</em>`:num(s.words)}</span></button></li>`;
   });
   const dsv=day.start!=null?hm(day.start):'',dev=day.end!=null?hm(day.end):'';
   return`<section class="panel"><h3>${t('sprints')}</h3>
@@ -3170,9 +3211,10 @@ function rWords(day){
 function rConditions(day){
   const sh=S.settings.show,Ls=S.settings.lists;const parts=[];
   if(sh.block){const bl=DAYTYPES.slice();if(day.block&&!bl.includes(day.block))bl.push(day.block);const dps=daypartsOf(day);parts.push(`<div class="field"><span class="flabel">${t('block')}</span>${chipsSingle('block',bl,day.block||typeOf(day.date))}</div>`);if(dps.length)parts.push(`<div class="field"><span class="flabel">${t('daypart')} <span class="muted">${dps.map(o).map(esc).join(' + ')}</span></span></div>`)}
-  for(const k of['mood','energy','stress'])if(sh[k])parts.push(`<div class="field"><span class="flabel">${t(k)}</span>${scale(k,day[k])}</div>`);
+  const fl=k=>day.fromLately&&day.fromLately[k]&&day[k]!=null?` <span class="muted">· ${L()==='nl'?'uit Lately':'from Lately'}</span>`:'';
+  for(const k of['mood','energy','stress'])if(sh[k])parts.push(`<div class="field"><span class="flabel">${t(k)}${fl(k)}</span>${scale(k,day[k])}</div>`);
   if(sh.life)parts.push(`<div class="field"><span class="flabel">${t('life')}</span>${chipsSingle('life',['soft','medium','heavy'],day.life)}</div>`);
-  for(const k of['sensory','care'])if(sh[k])parts.push(`<div class="field"><span class="flabel">${t(k)}</span>${scale(k,day[k])}</div>`);
+  for(const k of['sensory','care'])if(sh[k])parts.push(`<div class="field"><span class="flabel">${t(k)}${fl(k)}</span>${scale(k,day[k])}</div>`);
   if(sh.cycle)parts.push(rCycle(day));
   if(sh.body)parts.push(`<div class="field"><span class="flabel">${t('body')}</span>${chipsMulti('body',Ls.body,day.body||[],'body')}</div>`);
   if(sh.weather)parts.push(`<div class="field"><span class="flabel">${t('weather')} <span class="muted">(${esc(o(season(day.date)))})</span></span>${chipsMulti('weather',Ls.weather,day.weather||[],'weather')}</div>`);
@@ -3496,12 +3538,12 @@ const ACT={
     if(isNew)celebrate(day.sprints.filter(x=>x.end).length)},
   'add-unlogged':b=>{ const day=dayFor(view.date); const u=unlogged(day)[+b.dataset.i]; if(!u) return; const t0=parseISO(day.date).getTime();
     if(u.from==null||u.to==null) return;
-    const s={id:uid(),pid:u.pid,start:t0+u.from*60000,end:t0+(u.to+1)*60000,planned:null,words:u.words}; day.sprints.push(s);
+    const span=u.to+1-u.from, act=u.loose?span:Math.min(span,u.act||span); const s={id:uid(),pid:u.pid,start:t0+u.from*60000,end:t0+(u.to+1)*60000,planned:null,words:u.words,pause:(span-act)*60000,auto:true}; day.sprints.push(s);
     if(day.start==null||day.start>s.start) day.start=s.start; if(!day.block&&S.settings.show.block) day.block=nextBlock(day.date);
     snapshotProj(day,u.pid); touch(day.date); render(); celebrate(day.sprints.filter(x=>x.end).length); },
   'del-sprint':()=>{const{ds,id}=modalCtx;const day=S.days[ds];day.sprints=day.sprints.filter(x=>x.id!==id);touch(ds);closeModal();render()},
   'day-now':b=>{const day=dayFor(view.date);day[b.dataset.v]=view.date===todayISO()?Date.now():tsAt(view.date,'12:00');touch(view.date);render()},
-  pick:b=>{const day=dayFor(view.date);const f=b.dataset.f;let v=b.dataset.v;if(['mood','energy','stress','sensory','care'].includes(f))v=+v;day[f]=day[f]===v?null:v;touch(view.date);render()},
+  pick:b=>{const day=dayFor(view.date);const f=b.dataset.f;let v=b.dataset.v;if(day.fromLately)delete day.fromLately[f];if(['mood','energy','stress','sensory','care'].includes(f))v=+v;day[f]=day[f]===v?null:v;touch(view.date);render()},
   pickm:b=>{const day=dayFor(view.date);const f=b.dataset.f,v=b.dataset.v;const a=day[f]||(day[f]=[]);const i=a.indexOf(v);i>=0?a.splice(i,1):a.push(v);touch(view.date);render()},
   'words-pid':b=>{view.wordsPid=b.dataset.id;render()},
   felt:b=>{const p=proj(b.dataset.id);p.felt=!p.felt;touch('settings');const day=dayFor(view.date);snapshotProj(day,p.id);day.proj[p.id].felt=p.felt;touch(view.date);render()},
@@ -3617,6 +3659,16 @@ return {
     for(const [k,l] of Object.entries(S.days)){ const v=rd[k]; if(l.u && (!v||(l.u||0)>(v.u||0))) won=true; }
     saveLocal(); renderSoon(); return won;
   },
+  lately(days){
+    if(!days||typeof days!=='object') return 0; let n=0;
+    for(const [ds,v] of Object.entries(days)){ if(!/^\d{4}-\d\d-\d\d$/.test(ds)||!v) continue;
+      const had=!!S.days[ds], d=S.days[ds]||newDay(ds); d.fromLately=d.fromLately||{}; let ch=false;
+      for(const k of ['mood','energy','sensory']){ const x=v[k]; if(x==null) continue;
+        if(d[k]!=null && !d.fromLately[k]) continue;
+        if(d[k]!==x || !d.fromLately[k]){ d[k]=x; d.fromLately[k]=true; ch=true; } }
+      if(ch){ if(!had) S.days[ds]=d; touch(ds); n++; } }
+    if(n) renderSoon(); return n;
+  },
   ensure(sbId,title,live){
     title=(title||'Untitled').trim(); let ch=false;
     let p=byStory(sbId);
@@ -3633,6 +3685,18 @@ return {
   tidy(live){
     if(!Array.isArray(live)||!live.length) return 0; const run=runningDay(); const now=Date.now(); let n=0;
     S.settings.gone=S.settings.gone||{};
+    const isLive=p=>p.sbId&&live.includes(p.sbId), weight=id=>Object.values(S.days).reduce((a,d)=>a+(d.sprints||[]).filter(x=>x.pid===id).length,0);
+    const groups={}; S.settings.projects.forEach(p=>{ const k=String(p.title||'').trim().toLowerCase(); (groups[k]=groups[k]||[]).push(p); });
+    for(const g of Object.values(groups)){ if(g.length<2) continue;
+      const keep=g.find(isLive)||g.find(p=>p.id===S.settings.activeProject)||g.slice().sort((a,b)=>weight(b.id)-weight(a.id))[0];
+      for(const o of g){ if(o===keep||isLive(o)||(run&&run.running&&run.running.pid===o.id)) continue;
+        for(const [ds,d] of Object.entries(S.days)){ let ch=false;
+          (d.sprints||[]).forEach(x=>{ if(x.pid===o.id){ x.pid=keep.id; ch=true; } });
+          if(d.proj&&d.proj[o.id]){ if(!d.proj[keep.id]) d.proj[keep.id]=d.proj[o.id]; delete d.proj[o.id]; ch=true; }
+          if(ch) touch(ds); }
+        if(!keep.target&&o.target) keep.target=o.target;
+        if(S.settings.activeProject===o.id) S.settings.activeProject=keep.id;
+        S.settings.projects=S.settings.projects.filter(x=>x!==o); S.settings.gone[o.id]=now; n++; } }
     S.settings.projects=S.settings.projects.filter(p=>{
       const orphan=p.sbId && !live.includes(p.sbId);
       if(!orphan || hasData(p.id) || p.target || p.id===S.settings.activeProject || (run&&run.running&&run.running.pid===p.id)) return true;
@@ -3799,7 +3863,8 @@ function todayView(){
   let h=`<h3>Today</h3><p class="intro">Your plate, your thinking time, and everything you finish today.</p>`;
   if(plateFull()) h+=`<div class="full">Your plate is full. That is today's finish line.<small>You showed up and did the thing. Everything from here is extra.</small></div>`;
   h+=`<div class="group">Your plate today</div><div class="plates" role="group" aria-label="How full is your plate today">${[1,2,3].map(k=>`<button class="plate ${chosen&&n===k?'on':''}" data-plate="${k}" ${!chosen&&LATELY&&LATELY.date===today()&&LATELY.plate===k?'data-hint="1"':''} aria-pressed="${chosen&&n===k}"><span class="bowl" aria-hidden="true">${'●'.repeat(k)}${'○'.repeat(3-k)}</span>${['Small','Medium','Full'][k-1]}</button>`).join('')}</div>`;
-  if(LATELY&&LATELY.date===today()&&LATELY.en) h+=`<div class="from-lately"><b>From Lately</b>${esc(LATELY.en)}${!chosen&&LATELY.plate?`<small>Lately suggests a ${['small','medium','full'][LATELY.plate-1]} plate.</small>`:''}</div>`;
+  if(LATELY&&LATELY.date===today()&&(LATELY.en||LATELY.today)){ const lt=LATELY.today||{}, bits=[lt.mood!=null?`mood ${lt.mood}`:'',lt.energy!=null?`energy ${lt.energy}`:'',lt.sensory!=null?`sensory load ${lt.sensory}`:''].filter(Boolean);
+    h+=`<div class="from-lately"><b>From Lately</b>${LATELY.en?esc(LATELY.en):''}${bits.length?`<small>${LATELY.checkins>1?`${LATELY.checkins} check-ins today`:'Checked in today'}${LATELY.lastTime?`, last at ${esc(LATELY.lastTime)}`:''}: ${bits.join(', ')} (1 to 5).</small>`:''}${!chosen&&LATELY.plate?`<small>Lately suggests a ${['small','medium','full'][LATELY.plate-1]} plate.</small>`:''}</div>`; }
   h+=`<p class="more">${chosen?`${['A small','A medium','A full'][n-1]} plate today. Fill it all the way, and that is your finish line.`:`How full is your plate today? Pick what you have, not what you wish you had.`}</p>`;
   if(g>0){ const pc=Math.min(100,Math.round(have/g*100)), met=have>=g;
     h+=`<div class="bar3" aria-hidden="true"><span style="width:${pc}%;background:${met?'#8fb685':'var(--t-today)'}"></span></div>
@@ -4079,7 +4144,7 @@ function bindSafety(body){
   body.querySelectorAll('[data-sfdl]').forEach(b=>b.onclick=()=>downloadSafety(b.dataset.sfdl));
 }
 
-const APP_VERSION='2026-11-24a';
+const APP_VERSION='2026-11-24c';
 /* ================= TEASERS: lines you might share before the book is out ================= */
 function selectionPieces(range){
   const box=document.createElement('div'); box.appendChild(range.cloneContents());
@@ -4455,7 +4520,7 @@ async function ufStartup(){ try{ const x=await store.get('unfurl'); if(x && Arra
   setTimeout(autoWinter, 1500);
   applySide(); applyTw(); loadProject();
   if(store.mode==='memory') $('#saved').textContent='Not saved on this device: make a backup';
-  else setTimeout(()=>{ try{ if(LOG&&LOG.tidy&&!DBX.stopped){ const n=LOG.tidy(S.projects.map(x=>x.id)); if(n) toast(`Tidied ${n} empty book${n>1?'s':''} from your writing log`); } }catch(e){} }, 8000);
+  else setTimeout(()=>{ try{ if(LOG&&LOG.tidy&&!DBX.stopped){ const n=LOG.tidy(S.projects.map(x=>x.id)); if(n) toast(`Tidied up ${n} book${n>1?'s':''} on the shelf of your writing log`); } }catch(e){} }, 8000);
 })();
 })();
 
